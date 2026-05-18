@@ -98,7 +98,8 @@ if (db) {
         const message = `🛒 YANGI BUYURTMA!\n\n` +
             `👤 Mijoz: ${orderData.customerName || 'Noma\'lum'}\n` +
             `📞 Telefon: ${orderData.customerPhone || 'Noma\'lum'}\n` +
-            `🆔 Telegram ID: ${orderData.customerTelegramId || 'Yo\'q'}\n\n` +
+            `🆔 Login: ${orderData.customerLogin || 'Yo\'q'}\n` +
+            `📲 Telegram ID: ${orderData.customerTelegramId || 'Yo\'q'}\n\n` +
             bonusBlock +
             deliveryBlock +
             `🛍 Mahsulotlar:\n${itemsText}\n\n` +
@@ -130,7 +131,7 @@ const mainKeyboard = {
         keyboard: [
             [{ text: "🛍 Mahsulot qo'shish" }, { text: "📂 Kategoriya qo'shish" }],
             [{ text: "📂 Kategoriya yangilash" }, { text: "🔄 Mahsulotni yangilash" }],
-            [{ text: "👥 Mijoz qo'shish" }, { text: "👥 Mijozlar ro'yxati" }],
+            [{ text: "🆔 Login qo'shish" }, { text: "👥 Loginlar ro'yxati" }],
             [{ text: "📊 Statistika" }, { text: "📦 Buyurtmalar" }],
             [{ text: "❌ Bekor qilish" }],
         ],
@@ -415,13 +416,10 @@ async function handleBack(chatId) {
         await showCategoryView(chatId, state.data.categoryId, state.data.messageId);
     } else if (['update_category_name', 'update_category_icon'].includes(prevStep)) {
         await showCategoryView(chatId, state.data.categoryId, state.data.messageId);
-    } else if (prevStep.startsWith('customer_')) {
+    } else if (prevStep.startsWith('login_create_')) {
         const stepMessages = {
-            'customer_firstName': "1/5. Mijozning ismini kiriting:",
-            'customer_lastName': "2/5. Familiyasini kiriting:",
-            'customer_phone': "3/5. Telefon raqamini kiriting (mas: +998901234567):",
-            'customer_login': "4/5. Login yarating (mas: jonibek_123, faqat lotin harflar/raqamlar/_, kamida 3 belgi):",
-            'customer_password': "5/5. Parol yarating (kamida 4 belgi):",
+            'login_create_login': "1/2. Login yarating (faqat lotin harflar, raqamlar, _, kamida 3 belgi). Mas: jonibek_123",
+            'login_create_password': "2/2. Parol yarating (kamida 4 belgi):",
         };
         bot.sendMessage(chatId, stepMessages[prevStep] || "Bosh menyu.", backKeyboard);
     } else if (prevStep.startsWith('product_')) {
@@ -491,31 +489,51 @@ async function handleCommand(chatId, text) {
         await showProductUpdateCategorySelect(chatId);
         return;
     }
-    if (text === "👥 Mijoz qo'shish") {
-        userState[chatId] = { step: 'customer_firstName', data: {}, steps: [] };
-        bot.sendMessage(chatId, "1/5. Mijozning ismini kiriting:", backKeyboard);
+    if (text === "🆔 Login qo'shish") {
+        userState[chatId] = { step: 'login_create_login', data: {}, steps: [] };
+        bot.sendMessage(chatId, "1/2. Login yarating (faqat lotin harflar, raqamlar, _, kamida 3 belgi). Mas: jonibek_123", backKeyboard);
         return;
     }
-    if (text === "👥 Mijozlar ro'yxati") {
+    if (text === "👥 Loginlar ro'yxati") {
         try {
-            const snapshot = await db.collection('customers').orderBy('createdAt', 'desc').limit(20).get();
+            const snapshot = await db.collection('customers').orderBy('createdAt', 'desc').limit(30).get();
             if (snapshot.empty) {
-                bot.sendMessage(chatId, "Hali mijozlar yo'q.", mainKeyboard);
+                bot.sendMessage(chatId, "Hali bironta login yaratilmagan.", mainKeyboard);
                 return;
             }
-            let msg = `👥 Mijozlar ro'yxati (oxirgi 20):\n\n`;
+            let msg = `👥 Loginlar ro'yxati (oxirgi 30):\n\n`;
             snapshot.docs.forEach((doc, idx) => {
                 const c = doc.data();
-                const tgStatus = c.telegramId ? `✅ TG: ${c.telegramId}` : `⏳ Hali kirmagan`;
-                msg += `${idx + 1}. ${c.firstName} ${c.lastName}\n`;
-                msg += `   📞 ${c.phone}\n`;
-                msg += `   🔑 Login: ${c.login} | Parol: ${c.password}\n`;
-                msg += `   ${tgStatus}\n`;
-                msg += `   📦 Buyurtmalar: ${c.totalOrders || 0} ta (bonus: ${c.ordersCount || 0}/3)\n\n`;
+                const nameStatus = c.firstName ? `${c.firstName}` : `⏳ Hali kirmagan`;
+                const phoneStatus = c.phone ? `📞 ${c.phone}` : `📞 -`;
+                const tgStatus = c.telegramId ? `TG: ${c.telegramId}` : `TG: -`;
+                msg += `${idx + 1}. ${nameStatus}\n`;
+                msg += `   🔑 ${c.login} / ${c.password}\n`;
+                msg += `   ${phoneStatus} | ${tgStatus}\n`;
+                msg += `   📦 ${c.totalOrders || 0} ta buyurtma (bonus: ${c.ordersCount || 0}/3)\n\n`;
             });
-            bot.sendMessage(chatId, msg, mainKeyboard);
+            // Telegram 4096 belgidan ortmasligi uchun bo'lib yuboramiz
+            if (msg.length > 4000) {
+                const chunks = [];
+                let current = '';
+                for (const line of msg.split('\n')) {
+                    if ((current + line + '\n').length > 4000) {
+                        chunks.push(current);
+                        current = line + '\n';
+                    } else {
+                        current += line + '\n';
+                    }
+                }
+                if (current) chunks.push(current);
+                for (const chunk of chunks) {
+                    await bot.sendMessage(chatId, chunk);
+                }
+                bot.sendMessage(chatId, "Bosh menyu.", mainKeyboard);
+            } else {
+                bot.sendMessage(chatId, msg, mainKeyboard);
+            }
         } catch (error) {
-            console.error("Mijozlarni olishda xato:", error);
+            console.error("Loginlarni olishda xato:", error);
             bot.sendMessage(chatId, "❌ Xato!", mainKeyboard);
         }
         return;
@@ -597,7 +615,7 @@ async function handleCategoryStep(chatId, currentStep, isBack = false) {
     else if (currentStep === 'category_icon') bot.sendMessage(chatId, "2/2. Ikonka (emoji, mas: 🔧):", backKeyboard);
 }
 
-const commandButtons = ["🛍 Mahsulot qo'shish", "📂 Kategoriya qo'shish", "📂 Kategoriya yangilash", "🔄 Mahsulotni yangilash", "👥 Mijoz qo'shish", "👥 Mijozlar ro'yxati", "📊 Statistika", "📦 Buyurtmalar", "❌ Bekor qilish"];
+const commandButtons = ["🛍 Mahsulot qo'shish", "📂 Kategoriya qo'shish", "📂 Kategoriya yangilash", "🔄 Mahsulotni yangilash", "🆔 Login qo'shish", "👥 Loginlar ro'yxati", "📊 Statistika", "📦 Buyurtmalar", "❌ Bekor qilish"];
 
 // MESSAGE HANDLER
 bot.on('message', async (msg) => {
@@ -813,98 +831,62 @@ bot.on('message', async (msg) => {
         return;
     }
 
-    // MIJOZ QO'SHISH BOSQICHLARI
-    if (step.startsWith('customer_')) {
+    // LOGIN YARATISH BOSQICHLARI
+    if (step.startsWith('login_create_')) {
         const oldStep = step;
         switch (step) {
-            case 'customer_firstName':
-                if (!text || text.length < 2) {
-                    bot.sendMessage(chatId, "Ism kamida 2 belgi bo'lsin!");
-                    return;
-                }
-                data.firstName = text.trim();
-                state.steps.push(oldStep);
-                state.step = 'customer_lastName';
-                bot.sendMessage(chatId, "2/5. Familiyasini kiriting:", backKeyboard);
-                break;
-
-            case 'customer_lastName':
-                if (!text || text.length < 2) {
-                    bot.sendMessage(chatId, "Familiya kamida 2 belgi bo'lsin!");
-                    return;
-                }
-                data.lastName = text.trim();
-                state.steps.push(oldStep);
-                state.step = 'customer_phone';
-                bot.sendMessage(chatId, "3/5. Telefon raqamini kiriting (mas: +998901234567):", backKeyboard);
-                break;
-
-            case 'customer_phone':
-                const phoneRegex = /^\+?\d{9,15}$/;
-                if (!phoneRegex.test(text.replace(/\s/g, ''))) {
-                    bot.sendMessage(chatId, "❌ Telefon noto'g'ri! Format: +998901234567");
-                    return;
-                }
-                data.phone = text.replace(/\s/g, '');
-                state.steps.push(oldStep);
-                state.step = 'customer_login';
-                bot.sendMessage(chatId, "4/5. Login yarating (mas: jonibek_123, faqat lotin harflar/raqamlar/_, kamida 3 belgi):", backKeyboard);
-                break;
-
-            case 'customer_login':
+            case 'login_create_login':
                 const loginRegex = /^[a-zA-Z0-9_]{3,30}$/;
                 if (!loginRegex.test(text)) {
-                    bot.sendMessage(chatId, "❌ Login noto'g'ri! Faqat lotin harflar, raqamlar, _. Kamida 3 belgi.");
+                    bot.sendMessage(chatId, "❌ Login noto'g'ri! Faqat lotin harflar, raqamlar, _. Kamida 3, maksimum 30 belgi.");
                     return;
                 }
                 const login = text.toLowerCase().trim();
                 // Tekshirish: bunday login mavjudmi
                 const existing = await db.collection('customers').doc(login).get();
                 if (existing.exists) {
-                    bot.sendMessage(chatId, "❌ Bunday login allaqachon mavjud! Boshqa login tanlang.");
+                    bot.sendMessage(chatId, "❌ Bu login allaqachon mavjud! Boshqa login tanlang.");
                     return;
                 }
                 data.login = login;
                 state.steps.push(oldStep);
-                state.step = 'customer_password';
-                bot.sendMessage(chatId, "5/5. Parol yarating (kamida 4 belgi):", backKeyboard);
+                state.step = 'login_create_password';
+                bot.sendMessage(chatId, "2/2. Parol yarating (kamida 4 belgi):", backKeyboard);
                 break;
 
-            case 'customer_password':
+            case 'login_create_password':
                 if (!text || text.length < 4) {
                     bot.sendMessage(chatId, "❌ Parol kamida 4 belgi bo'lsin!");
                     return;
                 }
                 data.password = text;
 
-                // Mijozni Firebase'ga saqlash
+                // Yangi mijozni saqlash
                 const newCustomer = {
                     login: data.login,
                     password: data.password,
-                    firstName: data.firstName,
-                    lastName: data.lastName,
-                    phone: data.phone,
-                    telegramId: null, // 1-marta saytga kirganida qo'shiladi
+                    firstName: null,
+                    phone: null,
+                    telegramId: null,
                     ordersCount: 0,
                     totalOrders: 0,
+                    addresses: [],
                     createdAt: admin.firestore.FieldValue.serverTimestamp(),
                 };
 
                 try {
                     await db.collection('customers').doc(data.login).set(newCustomer);
                     bot.sendMessage(chatId,
-                        `✅ Mijoz qo'shildi!\n\n` +
-                        `👤 ${data.firstName} ${data.lastName}\n` +
-                        `📞 ${data.phone}\n\n` +
-                        `🔑 LOGIN MA'LUMOTLARI (mijozga jo'nating):\n` +
+                        `✅ Login yaratildi!\n\n` +
+                        `🔑 LOGIN MA'LUMOTLARI (mijozga jo'nating):\n\n` +
                         `Login: ${data.login}\n` +
                         `Parol: ${data.password}\n\n` +
-                        `📲 Mijoz Telegram Mini App orqali shu ma'lumotlar bilan kirsin.`,
+                        `📲 Mijoz Mini App orqali shu ma'lumotlar bilan kiradi va ism + telefonni o'zi kiritadi.`,
                         mainKeyboard
                     );
                 } catch (error) {
-                    console.error("Mijoz saqlashda xato:", error);
-                    bot.sendMessage(chatId, "❌ Mijozni saqlashda xato!", mainKeyboard);
+                    console.error("Login saqlashda xato:", error);
+                    bot.sendMessage(chatId, "❌ Login saqlashda xato!", mainKeyboard);
                 }
                 resetUserState(chatId);
                 break;
@@ -1012,8 +994,8 @@ bot.on('callback_query', async (cq) => {
             await orderRef.update({ status: newStatus });
 
             // BONUS COUNTER — faqat tasdiqlangan buyurtmalarda
-            if (isConfirm && orderData.customerTelegramId) {
-                const customerRef = db.collection('customers').doc(String(orderData.customerTelegramId));
+            if (isConfirm && orderData.customerLogin) {
+                const customerRef = db.collection('customers').doc(String(orderData.customerLogin));
                 const customerDoc = await customerRef.get();
                 if (customerDoc.exists) {
                     const c = customerDoc.data();
@@ -1023,7 +1005,9 @@ bot.on('callback_query', async (cq) => {
                         ordersCount: newCount,
                         totalOrders: (c.totalOrders || 0) + 1,
                     });
-                    console.log(`✅ Mijoz ${orderData.customerTelegramId}: ordersCount ${currentCount} → ${newCount}`);
+                    console.log(`✅ Mijoz ${orderData.customerLogin}: ordersCount ${currentCount} → ${newCount}`);
+                } else {
+                    console.warn(`⚠️ Mijoz topilmadi: ${orderData.customerLogin}`);
                 }
             }
 
