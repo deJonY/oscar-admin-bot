@@ -7,6 +7,7 @@ const { showProductView } = require('../views/product');
 
 function registerPhotoHandler() {
     bot.on('photo', async (msg) => {
+        try {
         const chatId = msg.chat.id;
         if (!admins.includes(chatId)) return;
         if (!db) return;
@@ -39,6 +40,9 @@ function registerPhotoHandler() {
         } else {
             const { mainKeyboard } = require('../keyboards');
             bot.sendMessage(chatId, "Rasm kutilmayapti.", mainKeyboard);
+        }
+        } catch (error) {
+            console.error('Photo handler xato:', error);
         }
     });
 }
