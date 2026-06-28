@@ -4,6 +4,7 @@ const { mainKeyboard, backKeyboard } = require('../keyboards');
 const { userState, resetUserState } = require('../state/userState');
 const { showCategoryUpdateSelect } = require('../views/category');
 const { showProductUpdateCategorySelect } = require('../views/product');
+const { getLocalName } = require('../utils/helpers');
 
 async function handleCommand(chatId, text) {
     resetUserState(chatId);
@@ -11,10 +12,10 @@ async function handleCommand(chatId, text) {
 
     if (text === "🛍 Mahsulot qo'shish") {
         const snapshot = await db.collection('categories').get();
-        const categoryNames = snapshot.docs.map(d => d.data().name);
+        const categoryNames = snapshot.docs.map(d => getLocalName(d.data().name));
         if (categoryNames.length === 0) { bot.sendMessage(chatId, "Avval kategoriya qo'shing.", mainKeyboard); return; }
         userState[chatId] = { step: 'product_name', data: { categoryNames }, steps: [] };
-        bot.sendMessage(chatId, "1/8. Mahsulot nomini kiriting:", backKeyboard);
+        bot.sendMessage(chatId, "1/9. Mahsulot nomini kiriting:", backKeyboard);
         return;
     }
     if (text === "📂 Kategoriya qo'shish") {

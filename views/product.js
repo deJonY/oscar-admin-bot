@@ -1,7 +1,7 @@
 const { bot } = require('../config/adminBot');
 const { db } = require('../config/firebase');
 const { mainKeyboard } = require('../keyboards');
-const { formatTimestamp } = require('../utils/helpers');
+const { formatTimestamp, getLocalName } = require('../utils/helpers');
 const { userState, resetUserState } = require('../state/userState');
 
 async function showProductView(chatId, productId, messageId) {
@@ -12,17 +12,20 @@ async function showProductView(chatId, productId, messageId) {
             return;
         }
         const p = doc.data();
+        const productName = getLocalName(p.name);
         const startDateText = formatTimestamp(p.discountStartDate);
         const endDateText = formatTimestamp(p.discountEndDate);
         const updateKeyboard = {
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: `Nomi: ${p.name}`, callback_data: `update_field_name_${productId}` }],
+                    [{ text: `Nomi: ${productName}`, callback_data: `update_field_name_${productId}` }],
                     [{ text: `Narx: ${(p.price || 0).toLocaleString('uz-UZ')} so'm`, callback_data: `update_field_price_${productId}` }],
+                    [{ text: `Narx (USD): $${(p.priceUSD || 0).toFixed(2)}`, callback_data: `update_field_priceUSD_${productId}` }],
                     [{ text: `Chegirma: ${p.discount || 0}%`, callback_data: `update_field_discount_${productId}` }],
                     [{ text: `📅 Chegirma boshlanishi: ${startDateText}`, callback_data: `update_field_discountStart_${productId}` }],
                     [{ text: `📅 Chegirma tugashi: ${endDateText}`, callback_data: `update_field_discountEnd_${productId}` }],
-                    [{ text: `Stock: ${(p.stock || 0).toLocaleString()} dona`, callback_data: `update_field_stock_${productId}` }],
+                    [{ text: `Stock (korxobada): ${(p.stock || 0).toLocaleString()} dona`, callback_data: `update_field_stock_${productId}` }],
+                    [{ text: `Korxoba sig'imi (ombor): ${(p.warehouseCount || 0).toLocaleString()} dona`, callback_data: `update_field_warehouseCount_${productId}` }],
                     [{ text: `Tavsif: ${p.description ? p.description.substring(0, 20) + '...' : 'Yo\'q'}`, callback_data: `update_field_description_${productId}` }],
                     [{ text: `Rasm: ${p.image ? 'Bor' : 'Yo\'q'}`, callback_data: `update_field_image_${productId}` }],
                     [{ text: "🗑 Mahsulotni o'chirish", callback_data: `delete_product_${productId}` }],
@@ -31,12 +34,13 @@ async function showProductView(chatId, productId, messageId) {
             },
         };
         const message =
-            `📝 Mahsulot: ${p.name} (ID: ${productId})\n` +
-            `• Narx: ${(p.price || 0).toLocaleString('uz-UZ')} so'm\n` +
+            `📝 Mahsulot: ${productName} (ID: ${productId})\n` +
+            `• Narx: ${(p.price || 0).toLocaleString('uz-UZ')} so'm ($${(p.priceUSD || 0).toFixed(2)})\n` +
             `• Chegirma: ${p.discount || 0}%\n` +
             `• Chegirma boshlanishi: ${startDateText}\n` +
             `• Chegirma tugashi: ${endDateText}\n` +
-            `• Stock: ${(p.stock || 0).toLocaleString()} dona\n` +
+            `• Korxobada: ${(p.stock || 0).toLocaleString()} dona\n` +
+            `• Omborda: ${(p.warehouseCount || 0).toLocaleString()} dona\n` +
             `• Kategoriya: ${p.category}\n` +
             `• Tavsif: ${p.description || 'Belgilanmagan'}\n` +
             `• Rasm: ${p.image ? 'URL mavjud' : 'Yo\'q'}\n` +
@@ -60,11 +64,11 @@ async function showProductUpdateCategorySelect(chatId, messageId = null) {
             bot.sendMessage(chatId, "Bosh menyu.", mainKeyboard);
             return;
         }
-        const cats = snapshot.docs.map(d => { const x = d.data(); return { id: x.id, name: x.name, icon: x.icon }; });
+        const cats = snapshot.docs.map(d => { const x = d.data(); return { id: x.id, name: getLocalName(x.name), icon: x.icon || '' }; });
         const kb = { reply_markup: { inline_keyboard: [] } };
         for (let i = 0; i < cats.length; i += 2) {
-            const row = [{ text: `${cats[i].icon} ${cats[i].name}`, callback_data: `select_category_${cats[i].id}` }];
-            if (i + 1 < cats.length) row.push({ text: `${cats[i + 1].icon} ${cats[i + 1].name}`, callback_data: `select_category_${cats[i + 1].id}` });
+            const row = [{ text: `${cats[i].icon} ${cats[i].name}`.trim(), callback_data: `select_category_${cats[i].id}` }];
+            if (i + 1 < cats.length) row.push({ text: `${cats[i + 1].icon} ${cats[i + 1].name}`.trim(), callback_data: `select_category_${cats[i + 1].id}` });
             kb.reply_markup.inline_keyboard.push(row);
         }
         const text = "Qaysi kategoriyadagi mahsulotni yangilashni xohlaysiz?";
@@ -85,7 +89,7 @@ async function showProductsInCategory(chatId, categoryName, messageId = null) {
             resetUserState(chatId);
             return;
         }
-        const products = snapshot.docs.map(d => { const x = d.data(); return { id: x.id, name: x.name }; });
+        const products = snapshot.docs.map(d => { const x = d.data(); return { id: x.id, name: getLocalName(x.name) }; });
         const kb = { reply_markup: { inline_keyboard: [] } };
         for (let i = 0; i < products.length; i += 2) {
             const row = [{ text: products[i].name, callback_data: `update_product_${products[i].id}` }];
