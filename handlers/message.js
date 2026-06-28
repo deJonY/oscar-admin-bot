@@ -10,6 +10,7 @@ const { showCategoryView } = require('../views/category');
 
 function registerMessageHandler() {
     bot.on('message', async (msg) => {
+        try {
         const chatId = msg.chat.id;
         const text = msg.text;
         const photo = msg.photo;
@@ -334,6 +335,10 @@ function registerMessageHandler() {
         }
 
         bot.sendMessage(chatId, "Tushunmadim. Tugmalardan tanlang:", mainKeyboard);
+        } catch (error) {
+            console.error('Message handler xato:', error);
+            try { bot.sendMessage(msg.chat.id, "❌ Ichki xato yuz berdi."); } catch (_) {}
+        }
     });
 }
 

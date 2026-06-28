@@ -7,6 +7,7 @@ const { showProductUpdateCategorySelect } = require('../views/product');
 const { getLocalName } = require('../utils/helpers');
 
 async function handleCommand(chatId, text) {
+    try {
     resetUserState(chatId);
     if (!db) { bot.sendMessage(chatId, "❌ Database ulanmagan.", mainKeyboard); return; }
 
@@ -101,6 +102,10 @@ async function handleCommand(chatId, text) {
         return;
     }
     bot.sendMessage(chatId, "Tugmalardan tanlang:", mainKeyboard);
+    } catch (error) {
+        console.error('Command handler xato:', error);
+        try { bot.sendMessage(chatId, "❌ Ichki xato yuz berdi.", mainKeyboard); } catch (_) {}
+    }
 }
 
 module.exports = { handleCommand };

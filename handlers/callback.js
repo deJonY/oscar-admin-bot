@@ -10,6 +10,7 @@ const { getLocalName } = require('../utils/helpers');
 
 function registerCallbackHandler() {
     bot.on('callback_query', async (cq) => {
+        try {
         const chatId = cq.message.chat.id;
         const messageId = cq.message.message_id;
         const data = cq.data;
@@ -103,14 +104,14 @@ function registerCallbackHandler() {
         if (data.startsWith('cat_update_name_')) {
             const id = parseInt(data.replace('cat_update_name_', ''));
             const state = userState[chatId] || { step: 'none', data: {}, steps: [] };
-            userState[chatId] = { step: 'update_category_name', data: { categoryId: id, messageId }, steps: state.steps || [] };
+            userState[chatId] = { step: 'update_category_name', data: { categoryId: id, messageId }, steps: [...(state.steps || []), 'category_update_view'] };
             bot.sendMessage(chatId, 'Yangi nomni kiriting:', backKeyboard);
             bot.answerCallbackQuery(cq.id); return;
         }
         if (data.startsWith('cat_update_icon_')) {
             const id = parseInt(data.replace('cat_update_icon_', ''));
             const state = userState[chatId] || { step: 'none', data: {}, steps: [] };
-            userState[chatId] = { step: 'update_category_icon', data: { categoryId: id, messageId }, steps: state.steps || [] };
+            userState[chatId] = { step: 'update_category_icon', data: { categoryId: id, messageId }, steps: [...(state.steps || []), 'category_update_view'] };
             bot.sendMessage(chatId, 'Yangi ikonkani kiriting:', backKeyboard);
             bot.answerCallbackQuery(cq.id); return;
         }
@@ -168,7 +169,7 @@ function registerCallbackHandler() {
                 const fieldName = isStart ? 'discountStartDate' : 'discountEndDate';
                 const fieldLabel = isStart ? 'Chegirma boshlanish sanasi' : 'Chegirma tugash sanasi';
                 const cur = userState[chatId] || { step: 'none', data: {}, steps: [] };
-                userState[chatId] = { step: 'update_discount_date', data: { productId: id, dateField: fieldName, dateLabel: fieldLabel, selectedCategory: cur.data.selectedCategory, messageId }, steps: cur.steps || [] };
+                userState[chatId] = { step: 'update_discount_date', data: { productId: id, dateField: fieldName, dateLabel: fieldLabel, selectedCategory: cur.data.selectedCategory, messageId }, steps: [...(cur.steps || []), 'product_update_view'] };
                 bot.sendMessage(chatId, `${fieldLabel}ni kiriting:\nFormat: DD.MM.YYYY (mas: 13.05.2026)\nO'chirish uchun: 0`, backKeyboard);
                 bot.answerCallbackQuery(cq.id); return;
             }
@@ -178,17 +179,17 @@ function registerCallbackHandler() {
             const cur = userState[chatId] || { step: 'none', data: {}, steps: [] };
             const preserve = { selectedCategory: cur.data.selectedCategory, messageId };
             if (fieldType === 'name') {
-                userState[chatId] = { step: 'update_product_name', data: { productId: id, ...preserve }, steps: cur.steps || [] };
+                userState[chatId] = { step: 'update_product_name', data: { productId: id, ...preserve }, steps: [...(cur.steps || []), 'product_update_view'] };
                 bot.sendMessage(chatId, 'Yangi nomni kiriting:', backKeyboard);
             } else if (fieldType === 'description') {
-                userState[chatId] = { step: 'update_product_description', data: { productId: id, ...preserve }, steps: cur.steps || [] };
+                userState[chatId] = { step: 'update_product_description', data: { productId: id, ...preserve }, steps: [...(cur.steps || []), 'product_update_view'] };
                 bot.sendMessage(chatId, 'Yangi tavsifni kiriting:', backKeyboard);
             } else if (fieldType === 'image') {
-                userState[chatId] = { step: 'update_product_image', data: { productId: id, ...preserve }, steps: cur.steps || [] };
+                userState[chatId] = { step: 'update_product_image', data: { productId: id, ...preserve }, steps: [...(cur.steps || []), 'product_update_view'] };
                 const { mainBackKeyboard } = require('../keyboards');
                 bot.sendMessage(chatId, 'Yangi rasm yuboring:', mainBackKeyboard);
             } else {
-                userState[chatId] = { step: 'update_value', data: { productId: id, field: fieldType, ...preserve }, steps: cur.steps || [] };
+                userState[chatId] = { step: 'update_value', data: { productId: id, field: fieldType, ...preserve }, steps: [...(cur.steps || []), 'product_update_view'] };
                 const labelMap = { price: "Narx (so'm)", priceUSD: "Narx (USD)", discount: 'Chegirma (%)', stock: 'Korxobada nechta', warehouseCount: "Korxoba sig'imi (ombor)" };
                 bot.sendMessage(chatId, `${labelMap[fieldType] || fieldType} uchun yangi qiymatni yuboring:`, backKeyboard);
             }
@@ -206,6 +207,10 @@ function registerCallbackHandler() {
                 bot.answerCallbackQuery(cq.id);
             } catch (error) { bot.answerCallbackQuery(cq.id, { text: "Xato!" }); }
             return;
+        }
+        } catch (error) {
+            console.error('Callback handler xato:', error);
+            try { bot.answerCallbackQuery(cq.id, { text: "❌ Ichki xato!" }); } catch (_) {}
         }
     });
 }
