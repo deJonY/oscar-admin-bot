@@ -158,6 +158,43 @@ function registerCallbackHandler() {
             return;
         }
 
+        if (data.startsWith('update_field_category_')) {
+            const id = parseInt(data.replace('update_field_category_', ''));
+            try {
+                const catsSnap = await db.collection('categories').get();
+                if (catsSnap.empty) { bot.answerCallbackQuery(cq.id, { text: "Kategoriyalar yo'q!" }); return; }
+                const cats = catsSnap.docs.map(d => d.data());
+                const kb = { reply_markup: { inline_keyboard: [] } };
+                for (let i = 0; i < cats.length; i += 2) {
+                    const row = [{ text: `${cats[i].icon} ${cats[i].name}`, callback_data: `set_product_cat_${id}_${cats[i].id}` }];
+                    if (i + 1 < cats.length) row.push({ text: `${cats[i + 1].icon} ${cats[i + 1].name}`, callback_data: `set_product_cat_${id}_${cats[i + 1].id}` });
+                    kb.reply_markup.inline_keyboard.push(row);
+                }
+                kb.reply_markup.inline_keyboard.push([{ text: "⬅️ Orqaga", callback_data: 'back_to_prev' }]);
+                bot.editMessageText("Yangi kategoriyani tanlang:", { chat_id: chatId, message_id: messageId, reply_markup: kb.reply_markup });
+                bot.answerCallbackQuery(cq.id);
+            } catch (error) { bot.answerCallbackQuery(cq.id, { text: "Xato!" }); }
+            return;
+        }
+
+        if (data.startsWith('set_product_cat_')) {
+            const parts = data.replace('set_product_cat_', '').split('_');
+            const productId = parseInt(parts[0]);
+            const catId = parseInt(parts[1]);
+            try {
+                const catDoc = await db.collection('categories').doc(String(catId)).get();
+                if (!catDoc.exists) { bot.answerCallbackQuery(cq.id, { text: "Kategoriya topilmadi!" }); return; }
+                const catName = catDoc.data().name;
+                await db.collection('products').doc(String(productId)).update({ category: catName });
+                const state = userState[chatId] || { step: 'none', data: {}, steps: [] };
+                state.data.productId = productId; state.data.messageId = messageId;
+                userState[chatId] = state;
+                await showProductView(chatId, productId, messageId);
+                bot.answerCallbackQuery(cq.id, { text: `✅ Kategoriya: ${catName}` });
+            } catch (error) { bot.answerCallbackQuery(cq.id, { text: "Xato!" }); }
+            return;
+        }
+
         if (data.startsWith('update_field_')) {
             if (data.startsWith('update_field_discountStart_') || data.startsWith('update_field_discountEnd_')) {
                 const isStart = data.startsWith('update_field_discountStart_');
