@@ -83,15 +83,27 @@ async function showProductUpdateCategorySelect(chatId, messageId = null) {
 async function showProductsInCategory(chatId, categoryName, messageId = null) {
     try {
         const categoryStr = getLocalName(categoryName);
-        const snapshot = await db.collection('products').where('category', '==', categoryStr).get();
-        if (snapshot.empty) {
+        const [snap1, snap2] = await Promise.all([
+            db.collection('products').where('category', '==', categoryStr).get(),
+            db.collection('products').where('category.uz', '==', categoryStr).get(),
+        ]);
+        const seen = new Set();
+        const allDocs = [...snap1.docs, ...snap2.docs].filter(d => {
+            if (seen.has(d.id)) return false;
+            seen.add(d.id);
+            return true;
+        });
+        if (allDocs.length === 0) {
             const text = `"${categoryStr}" kategoriyasida mahsulot yo'q.`;
-            if (messageId) bot.editMessageText(text, { chat_id: chatId, message_id: messageId });
-            bot.sendMessage(chatId, text, mainKeyboard);
+            if (messageId) {
+                bot.editMessageText(text, { chat_id: chatId, message_id: messageId });
+            } else {
+                bot.sendMessage(chatId, text, mainKeyboard);
+            }
             resetUserState(chatId);
             return;
         }
-        const products = snapshot.docs.map(d => { const x = d.data(); return { id: x.id, name: getLocalName(x.name) }; });
+        const products = allDocs.map(d => { const x = d.data(); return { id: x.id, name: getLocalName(x.name) }; });
         const kb = { reply_markup: { inline_keyboard: [] } };
         for (let i = 0; i < products.length; i += 2) {
             const row = [{ text: products[i].name, callback_data: `update_product_${products[i].id}` }];
@@ -112,8 +124,13 @@ async function showProductsInCategory(chatId, categoryName, messageId = null) {
 async function getProductsInCategory(categoryName) {
     if (!db) return 0;
     try {
-        const snapshot = await db.collection('products').where('category', '==', getLocalName(categoryName)).get();
-        return snapshot.size;
+        const categoryStr = getLocalName(categoryName);
+        const [snap1, snap2] = await Promise.all([
+            db.collection('products').where('category', '==', categoryStr).get(),
+            db.collection('products').where('category.uz', '==', categoryStr).get(),
+        ]);
+        const ids = new Set([...snap1.docs.map(d => d.id), ...snap2.docs.map(d => d.id)]);
+        return ids.size;
     } catch (error) {
         return 0;
     }
