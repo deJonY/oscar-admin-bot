@@ -7,7 +7,6 @@ const { showProductView } = require('../views/product');
 
 function registerPhotoHandler() {
     bot.on('photo', async (msg) => {
-        try {
         const chatId = msg.chat.id;
         if (!admins.includes(chatId)) return;
         if (!db) return;
@@ -21,7 +20,7 @@ function registerPhotoHandler() {
                 if (state.step === 'product_image') {
                     state.steps.push(state.step);
                     state.step = 'product_description';
-                    bot.editMessageText("✅ Rasm yuklandi!\n7/9. Tavsifni kiriting:", { chat_id: chatId, message_id: waitMsg.message_id });
+                    bot.editMessageText("✅ Rasm yuklandi!\n6/8. Tavsifni kiriting:", { chat_id: chatId, message_id: waitMsg.message_id });
                     bot.sendMessage(chatId, "Tavsif:", backKeyboard);
                 } else {
                     try {
@@ -40,9 +39,6 @@ function registerPhotoHandler() {
         } else {
             const { mainKeyboard } = require('../keyboards');
             bot.sendMessage(chatId, "Rasm kutilmayapti.", mainKeyboard);
-        }
-        } catch (error) {
-            console.error('Photo handler xato:', error);
         }
     });
 }

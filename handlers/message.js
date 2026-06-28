@@ -2,15 +2,15 @@ const { bot, admins } = require('../config/adminBot');
 const { db, admin } = require('../config/firebase');
 const { mainKeyboard, backKeyboard, mainBackKeyboard, commandButtons } = require('../keyboards');
 const { userState, resetUserState } = require('../state/userState');
-const { parseNumberInput, parseDateDDMMYYYY, getNextId, getLocalName } = require('../utils/helpers');
+const { parseNumberInput, parseDateDDMMYYYY, getNextId } = require('../utils/helpers');
 const { handleBack } = require('./back');
 const { handleCommand } = require('./command');
+const { handleVipStep } = require('./vip');
 const { showProductView } = require('../views/product');
 const { showCategoryView } = require('../views/category');
 
 function registerMessageHandler() {
     bot.on('message', async (msg) => {
-        try {
         const chatId = msg.chat.id;
         const text = msg.text;
         const photo = msg.photo;
@@ -24,12 +24,15 @@ function registerMessageHandler() {
             if (text === '/start') {
                 resetUserState(chatId);
                 bot.sendMessage(chatId, "Xush kelibsiz! Shop-bot admin paneli.", mainKeyboard);
+            } else if (text === '/addvip' || text === '/removevip') {
+                // bu komandalar vip.js dagi bot.onText orqali ishlanadi
+                return;
             } else bot.sendMessage(chatId, "Noma'lum buyruq. /start ni bosing.", mainKeyboard);
             return;
         }
         if (text === "Orqaga") { await handleBack(chatId); return; }
         if (text && commandButtons.includes(text)) { await handleCommand(chatId, text); return; }
-        if (photo && !text) { return; }
+        if (photo && !text) { bot.emit('photo', msg); return; }
         if (!userState[chatId] || userState[chatId].step === 'none') {
             bot.sendMessage(chatId, "Tugmalardan tanlang:", mainKeyboard);
             return;
@@ -47,24 +50,15 @@ function registerMessageHandler() {
                     data.name = text;
                     state.steps.push(oldStep);
                     state.step = 'product_price';
-                    bot.sendMessage(chatId, "2/9. Narxni so'mda kiriting (mas: 250000):", backKeyboard);
+                    bot.sendMessage(chatId, "2/8. Narxni so'mda kiriting (mas: 250000):", backKeyboard);
                     break;
                 case 'product_price': {
                     const price = parseNumberInput(text);
                     if (price === null || price <= 0) { bot.sendMessage(chatId, "Musbat son kiriting!"); return; }
                     data.price = Math.floor(price);
                     state.steps.push(oldStep);
-                    state.step = 'product_priceUSD';
-                    bot.sendMessage(chatId, "3/9. Narxni USD da kiriting (mas: 19.37):", backKeyboard);
-                    break;
-                }
-                case 'product_priceUSD': {
-                    const priceUSD = parseNumberInput(text);
-                    if (priceUSD === null || priceUSD <= 0) { bot.sendMessage(chatId, "Musbat son kiriting! Mas: 19.37"); return; }
-                    data.priceUSD = Math.round(priceUSD * 100) / 100;
-                    state.steps.push(oldStep);
                     state.step = 'product_discount';
-                    bot.sendMessage(chatId, "4/9. Chegirma foizi (0-100, mas: 10 yoki 0):", backKeyboard);
+                    bot.sendMessage(chatId, "3/8. Chegirma (0-100, mas: 10 yoki 0):", backKeyboard);
                     break;
                 }
                 case 'product_discount': {
@@ -82,7 +76,7 @@ function registerMessageHandler() {
                             one_time_keyboard: true,
                         },
                     };
-                    bot.sendMessage(chatId, "5/9. Kategoriyani tanlang:", ckb);
+                    bot.sendMessage(chatId, "4/8. Kategoriyani tanlang:", ckb);
                     break;
                 }
                 case 'product_category':
@@ -90,47 +84,35 @@ function registerMessageHandler() {
                     data.category = text;
                     state.steps.push(oldStep);
                     state.step = 'product_image';
-                    bot.sendMessage(chatId, "6/9. Rasm yuboring (photo formatida):", mainBackKeyboard);
+                    bot.sendMessage(chatId, "5/8. Rasm yuboring (photo formatida):", mainBackKeyboard);
                     break;
                 case 'product_image':
-                    bot.sendMessage(chatId, "Iltimos, rasm yuboring (photo formatida)!", mainBackKeyboard);
                     return;
                 case 'product_description':
                     data.description = text;
                     state.steps.push(oldStep);
                     state.step = 'product_stock';
-                    bot.sendMessage(chatId, "8/9. Korxobada nechta borligi (mas: 50):", backKeyboard);
+                    bot.sendMessage(chatId, "7/8. Ombordagi miqdor (mas: 50):", backKeyboard);
                     break;
                 case 'product_stock': {
                     if (!/^\d+$/.test(text) || parseInt(text) < 0) { bot.sendMessage(chatId, "0 yoki musbat son!"); return; }
                     data.stock = parseInt(text);
-                    state.steps.push(oldStep);
-                    state.step = 'product_warehouse';
-                    bot.sendMessage(chatId, "9/9. Ombordagi jami soni (mas: 200):", backKeyboard);
-                    break;
-                }
-                case 'product_warehouse': {
-                    if (!/^\d+$/.test(text) || parseInt(text) < 0) { bot.sendMessage(chatId, "0 yoki musbat son!"); return; }
-                    data.warehouseCount = parseInt(text);
                     const newId = await getNextId('products');
                     if (newId === -1) { bot.sendMessage(chatId, "❌ ID xato!", mainKeyboard); resetUserState(chatId); return; }
                     const newProduct = {
                         id: newId, name: data.name, price: data.price,
-                        priceUSD: data.priceUSD || 0,
                         discount: data.discount || 0, category: data.category,
-                        image: data.image, description: data.description,
-                        stock: data.stock, warehouseCount: data.warehouseCount,
+                        image: data.image, description: data.description, stock: data.stock,
                     };
                     try {
                         await db.collection('products').doc(String(newId)).set(newProduct);
                         bot.sendMessage(chatId,
                             `✅ Mahsulot qo'shildi!\n\n` +
-                            `📦 ${getLocalName(newProduct.name)}\n` +
-                            `💰 ${newProduct.price.toLocaleString('uz-UZ')} so'm ($${newProduct.priceUSD.toFixed(2)})\n` +
+                            `📦 ${newProduct.name}\n` +
+                            `💰 ${newProduct.price.toLocaleString('uz-UZ')} so'm\n` +
                             `🏷 Chegirma: ${newProduct.discount}%\n` +
                             `📂 ${newProduct.category}\n` +
-                            `📊 Korxobada: ${newProduct.stock} ta\n` +
-                            `🏭 Omborda: ${newProduct.warehouseCount} ta\n\n` +
+                            `📊 Stock: ${newProduct.stock} ta\n\n` +
                             `Chegirma sanalari qo'shish uchun "Mahsulotni yangilash" → ushbu mahsulot → "Chegirma boshlanishi/tugashi" tugmalarini ishlating.`,
                             mainKeyboard
                         );
@@ -236,13 +218,9 @@ function registerMessageHandler() {
             } else if (fieldType === 'discount') {
                 if (!/^\d+$/.test(text) || parseInt(text) < 0 || parseInt(text) > 100) { bot.sendMessage(chatId, "0-100 oralig'ida!"); return; }
                 value = parseInt(text);
-            } else if (fieldType === 'stock' || fieldType === 'warehouseCount') {
+            } else if (fieldType === 'stock') {
                 if (!/^\d+$/.test(text) || parseInt(text) < 0) { bot.sendMessage(chatId, "0 yoki musbat son!"); return; }
                 value = parseInt(text);
-            } else if (fieldType === 'priceUSD') {
-                const parsed = parseNumberInput(text);
-                if (parsed === null || parsed <= 0) { bot.sendMessage(chatId, "Musbat son kiriting! Mas: 25.50"); return; }
-                value = Math.round(parsed * 100) / 100;
             } else { bot.sendMessage(chatId, "Xato!"); resetUserState(chatId); return; }
             try {
                 await db.collection('products').doc(String(stateData.productId)).update({ [fieldType]: value });
@@ -344,11 +322,13 @@ function registerMessageHandler() {
             return;
         }
 
-        bot.sendMessage(chatId, "Tushunmadim. Tugmalardan tanlang:", mainKeyboard);
-        } catch (error) {
-            console.error('Message handler xato:', error);
-            try { bot.sendMessage(msg.chat.id, "❌ Ichki xato yuz berdi."); } catch (_) {}
+        // VIP QO'SHISH / O'CHIRISH STEPS
+        if (step && (step.startsWith('vip_'))) {
+            await handleVipStep(chatId, text);
+            return;
         }
+
+        bot.sendMessage(chatId, "Tushunmadim. Tugmalardan tanlang:", mainKeyboard);
     });
 }
 

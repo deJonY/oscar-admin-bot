@@ -1,7 +1,7 @@
 const { bot } = require('../config/adminBot');
 const { db } = require('../config/firebase');
 const { mainKeyboard } = require('../keyboards');
-const { formatTimestamp, getLocalName } = require('../utils/helpers');
+const { formatTimestamp, getStr } = require('../utils/helpers');
 const { userState, resetUserState } = require('../state/userState');
 
 async function showProductView(chatId, productId, messageId) {
@@ -12,37 +12,36 @@ async function showProductView(chatId, productId, messageId) {
             return;
         }
         const p = doc.data();
-        const productName = getLocalName(p.name);
+        const name = getStr(p.name, 'Noma\'lum');
+        const category = getStr(p.category, 'Yo\'q');
+        const price = p.price || p.pricePiece || 0;
         const startDateText = formatTimestamp(p.discountStartDate);
         const endDateText = formatTimestamp(p.discountEndDate);
         const updateKeyboard = {
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: `Nomi: ${productName}`, callback_data: `update_field_name_${productId}` }],
-                    [{ text: `Narx: ${(p.price || 0).toLocaleString('uz-UZ')} so'm`, callback_data: `update_field_price_${productId}` }],
-                    [{ text: `Narx (USD): $${(p.priceUSD || 0).toFixed(2)}`, callback_data: `update_field_priceUSD_${productId}` }],
+                    [{ text: `Nomi: ${name}`, callback_data: `update_field_name_${productId}` }],
+                    [{ text: `Narx: ${price.toLocaleString('uz-UZ')} so'm`, callback_data: `update_field_price_${productId}` }],
                     [{ text: `Chegirma: ${p.discount || 0}%`, callback_data: `update_field_discount_${productId}` }],
                     [{ text: `📅 Chegirma boshlanishi: ${startDateText}`, callback_data: `update_field_discountStart_${productId}` }],
                     [{ text: `📅 Chegirma tugashi: ${endDateText}`, callback_data: `update_field_discountEnd_${productId}` }],
-                    [{ text: `Stock (korxobada): ${(p.stock || 0).toLocaleString()} dona`, callback_data: `update_field_stock_${productId}` }],
-                    [{ text: `Korxoba sig'imi (ombor): ${(p.warehouseCount || 0).toLocaleString()} dona`, callback_data: `update_field_warehouseCount_${productId}` }],
+                    [{ text: `Stock: ${(p.stock || 0).toLocaleString()} dona`, callback_data: `update_field_stock_${productId}` }],
                     [{ text: `Tavsif: ${p.description ? p.description.substring(0, 20) + '...' : 'Yo\'q'}`, callback_data: `update_field_description_${productId}` }],
                     [{ text: `Rasm: ${p.image ? 'Bor' : 'Yo\'q'}`, callback_data: `update_field_image_${productId}` }],
-                    [{ text: `📂 Kategoriya: ${p.category || 'Yo\'q'}`, callback_data: `update_field_category_${productId}` }],
+                    [{ text: `📂 Kategoriya: ${category}`, callback_data: `update_field_category_${productId}` }],
                     [{ text: "🗑 Mahsulotni o'chirish", callback_data: `delete_product_${productId}` }],
                     [{ text: "⬅️ Orqaga", callback_data: 'back_to_prev' }],
                 ],
             },
         };
         const message =
-            `📝 Mahsulot: ${productName} (ID: ${productId})\n` +
-            `• Narx: ${(p.price || 0).toLocaleString('uz-UZ')} so'm ($${(p.priceUSD || 0).toFixed(2)})\n` +
+            `📝 Mahsulot: ${name} (ID: ${productId})\n` +
+            `• Narx: ${price.toLocaleString('uz-UZ')} so'm\n` +
             `• Chegirma: ${p.discount || 0}%\n` +
             `• Chegirma boshlanishi: ${startDateText}\n` +
             `• Chegirma tugashi: ${endDateText}\n` +
-            `• Korxobada: ${(p.stock || 0).toLocaleString()} dona\n` +
-            `• Omborda: ${(p.warehouseCount || 0).toLocaleString()} dona\n` +
-            `• Kategoriya: ${p.category}\n` +
+            `• Stock: ${(p.stock || 0).toLocaleString()} dona\n` +
+            `• Kategoriya: ${category}\n` +
             `• Tavsif: ${p.description || 'Belgilanmagan'}\n` +
             `• Rasm: ${p.image ? 'URL mavjud' : 'Yo\'q'}\n` +
             `Qaysi maydonni yangilashni xohlaysiz?`;
@@ -65,11 +64,18 @@ async function showProductUpdateCategorySelect(chatId, messageId = null) {
             bot.sendMessage(chatId, "Bosh menyu.", mainKeyboard);
             return;
         }
-        const cats = snapshot.docs.map(d => { const x = d.data(); return { id: x.id, name: getLocalName(x.name), icon: x.icon || '' }; });
+        const cats = snapshot.docs.map(d => {
+            const x = d.data();
+            return { id: x.id, name: getStr(x.name), icon: x.icon || x.icon_url || '' };
+        });
         const kb = { reply_markup: { inline_keyboard: [] } };
         for (let i = 0; i < cats.length; i += 2) {
-            const row = [{ text: `${cats[i].icon} ${cats[i].name}`.trim(), callback_data: `select_category_${cats[i].id}` }];
-            if (i + 1 < cats.length) row.push({ text: `${cats[i + 1].icon} ${cats[i + 1].name}`.trim(), callback_data: `select_category_${cats[i + 1].id}` });
+            const label1 = `${cats[i].icon} ${cats[i].name}`.trim();
+            const row = [{ text: label1 || '?', callback_data: `select_category_${cats[i].id}` }];
+            if (i + 1 < cats.length) {
+                const label2 = `${cats[i + 1].icon} ${cats[i + 1].name}`.trim();
+                row.push({ text: label2 || '?', callback_data: `select_category_${cats[i + 1].id}` });
+            }
             kb.reply_markup.inline_keyboard.push(row);
         }
         const text = "Qaysi kategoriyadagi mahsulotni yangilashni xohlaysiz?";
@@ -82,19 +88,10 @@ async function showProductUpdateCategorySelect(chatId, messageId = null) {
 
 async function showProductsInCategory(chatId, categoryName, messageId = null) {
     try {
-        const categoryStr = getLocalName(categoryName);
-        const [snap1, snap2] = await Promise.all([
-            db.collection('products').where('category', '==', categoryStr).get(),
-            db.collection('products').where('category.uz', '==', categoryStr).get(),
-        ]);
-        const seen = new Set();
-        const allDocs = [...snap1.docs, ...snap2.docs].filter(d => {
-            if (seen.has(d.id)) return false;
-            seen.add(d.id);
-            return true;
-        });
-        if (allDocs.length === 0) {
-            const text = `"${categoryStr}" kategoriyasida mahsulot yo'q.`;
+        const snapshot = await db.collection('products').where('category', '==', categoryName).get();
+        const categoryNameStr = getStr(categoryName, '?');
+        if (snapshot.empty) {
+            const text = `"${categoryNameStr}" kategoriyasida mahsulot yo'q.`;
             if (messageId) {
                 bot.editMessageText(text, { chat_id: chatId, message_id: messageId });
             } else {
@@ -103,7 +100,10 @@ async function showProductsInCategory(chatId, categoryName, messageId = null) {
             resetUserState(chatId);
             return;
         }
-        const products = allDocs.map(d => { const x = d.data(); return { id: x.id, name: getLocalName(x.name) }; });
+        const products = snapshot.docs.map(d => {
+            const x = d.data();
+            return { id: x.id, name: getStr(x.name, 'Noma\'lum') };
+        });
         const kb = { reply_markup: { inline_keyboard: [] } };
         for (let i = 0; i < products.length; i += 2) {
             const row = [{ text: products[i].name, callback_data: `update_product_${products[i].id}` }];
@@ -111,11 +111,11 @@ async function showProductsInCategory(chatId, categoryName, messageId = null) {
             kb.reply_markup.inline_keyboard.push(row);
         }
         kb.reply_markup.inline_keyboard.push([{ text: "⬅️ Orqaga", callback_data: 'back_to_prev' }]);
-        const text = `"${categoryStr}" kategoriyasidagi mahsulotlar:`;
+        const text = `"${categoryNameStr}" kategoriyasidagi mahsulotlar:`;
         if (messageId) bot.editMessageText(text, { chat_id: chatId, message_id: messageId, reply_markup: kb.reply_markup });
         else bot.sendMessage(chatId, text, kb);
         const state = userState[chatId];
-        if (state) state.data.selectedCategory = categoryStr;
+        if (state) state.data.selectedCategory = categoryName;
     } catch (error) {
         console.error("Xato:", error);
     }
@@ -124,13 +124,8 @@ async function showProductsInCategory(chatId, categoryName, messageId = null) {
 async function getProductsInCategory(categoryName) {
     if (!db) return 0;
     try {
-        const categoryStr = getLocalName(categoryName);
-        const [snap1, snap2] = await Promise.all([
-            db.collection('products').where('category', '==', categoryStr).get(),
-            db.collection('products').where('category.uz', '==', categoryStr).get(),
-        ]);
-        const ids = new Set([...snap1.docs.map(d => d.id), ...snap2.docs.map(d => d.id)]);
-        return ids.size;
+        const snapshot = await db.collection('products').where('category', '==', categoryName).get();
+        return snapshot.size;
     } catch (error) {
         return 0;
     }

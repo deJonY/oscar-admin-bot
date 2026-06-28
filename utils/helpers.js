@@ -54,11 +54,11 @@ function parseDateDDMMYYYY(text) {
     return dateObj;
 }
 
-// Firestore'da name {uz,ru,en} object yoki oddiy string bo'lishi mumkin
-function getLocalName(name) {
-    if (!name) return 'Nomsiz';
-    if (typeof name === 'object') return name.uz || name.ru || name.en || Object.values(name)[0] || 'Nomsiz';
-    return String(name);
+function getStr(val, fallback = '') {
+    if (val === null || val === undefined) return fallback;
+    if (typeof val === 'string') return val;
+    if (typeof val === 'object') return val.uz || val.ru || val.en || val.name || fallback;
+    return String(val);
 }
 
-module.exports = { getNextId, parseNumberInput, formatTimestamp, parseDateDDMMYYYY, getLocalName };
+module.exports = { getNextId, parseNumberInput, formatTimestamp, parseDateDDMMYYYY, getStr };

@@ -2,7 +2,6 @@ const { bot, admins } = require('../config/adminBot');
 const { db, admin } = require('../config/firebase');
 const { getPaymentMethodText } = require('../paymentMethods');
 const { BONUS_DISCOUNT_PERCENT } = require('../config/constants');
-const { getLocalName } = require('../utils/helpers');
 
 function registerOrderListener() {
     if (!db) return;
@@ -34,7 +33,7 @@ function notifyAdminsNewOrder(orderId, orderData) {
     if (orderData.items && orderData.items.length > 0) {
         itemsText = orderData.items.map(item => {
             const totalPrice = (item.price * item.quantity).toLocaleString("uz-UZ");
-            return `- ${item.quantity} x ${getLocalName(item.name)} — ${totalPrice} so'm`;
+            return `- ${item.quantity} x ${item.name} — ${totalPrice} so'm`;
         }).join('\n');
     } else {
         itemsText = "Mahsulotlar yo'q";

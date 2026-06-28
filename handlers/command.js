@@ -2,18 +2,17 @@ const { bot } = require('../config/adminBot');
 const { db } = require('../config/firebase');
 const { mainKeyboard, backKeyboard } = require('../keyboards');
 const { userState, resetUserState } = require('../state/userState');
+const { getStr } = require('../utils/helpers');
 const { showCategoryUpdateSelect } = require('../views/category');
 const { showProductUpdateCategorySelect } = require('../views/product');
-const { getLocalName } = require('../utils/helpers');
 
 async function handleCommand(chatId, text) {
-    try {
     resetUserState(chatId);
     if (!db) { bot.sendMessage(chatId, "❌ Database ulanmagan.", mainKeyboard); return; }
 
     if (text === "🛍 Mahsulot qo'shish") {
         const snapshot = await db.collection('categories').get();
-        const categoryNames = snapshot.docs.map(d => getLocalName(d.data().name));
+        const categoryNames = snapshot.docs.map(d => d.data().name);
         if (categoryNames.length === 0) { bot.sendMessage(chatId, "Avval kategoriya qo'shing.", mainKeyboard); return; }
         userState[chatId] = { step: 'product_name', data: { categoryNames }, steps: [] };
         bot.sendMessage(chatId, "1/8. Mahsulot nomini kiriting:", backKeyboard);
@@ -68,11 +67,11 @@ async function handleCommand(chatId, text) {
             const kb = { reply_markup: { inline_keyboard: [] } };
             for (let i = 0; i < products.length; i += 2) {
                 const p = products[i];
-                const label = `${getLocalName(p.name)} [${getLocalName(p.category) || '?'}]`;
+                const label = `${getStr(p.name, '?')} [${getStr(p.category, '?')}]`;
                 const row = [{ text: label, callback_data: `update_product_${p.id}` }];
                 if (i + 1 < products.length) {
                     const p2 = products[i + 1];
-                    row.push({ text: `${getLocalName(p2.name)} [${getLocalName(p2.category) || '?'}]`, callback_data: `update_product_${p2.id}` });
+                    row.push({ text: `${getStr(p2.name, '?')} [${getStr(p2.category, '?')}]`, callback_data: `update_product_${p2.id}` });
                 }
                 kb.reply_markup.inline_keyboard.push(row);
             }
@@ -125,10 +124,6 @@ async function handleCommand(chatId, text) {
         return;
     }
     bot.sendMessage(chatId, "Tugmalardan tanlang:", mainKeyboard);
-    } catch (error) {
-        console.error('Command handler xato:', error);
-        try { bot.sendMessage(chatId, "❌ Ichki xato yuz berdi.", mainKeyboard); } catch (_) {}
-    }
 }
 
 module.exports = { handleCommand };

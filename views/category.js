@@ -1,7 +1,7 @@
 const { bot } = require('../config/adminBot');
 const { db } = require('../config/firebase');
 const { mainKeyboard } = require('../keyboards');
-const { getLocalName } = require('../utils/helpers');
+const { getStr } = require('../utils/helpers');
 
 async function showCategoryView(chatId, categoryId, messageId) {
     try {
@@ -11,20 +11,20 @@ async function showCategoryView(chatId, categoryId, messageId) {
             bot.sendMessage(chatId, "Bosh menyu.", mainKeyboard);
             return;
         }
-        const categoryData = doc.data();
-        const displayName = getLocalName(categoryData.name);
-        const displayIcon = categoryData.icon || '';
+        const c = doc.data();
+        const name = getStr(c.name, 'Noma\'lum');
+        const icon = c.icon || c.icon_url || '';
         const updateKeyboard = {
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: `Nomi: ${displayName}`, callback_data: `cat_update_name_${categoryId}` }],
-                    [{ text: `Ikonka: ${displayIcon || '(yo\'q)'}`, callback_data: `cat_update_icon_${categoryId}` }],
+                    [{ text: `Nomi: ${name}`, callback_data: `cat_update_name_${categoryId}` }],
+                    [{ text: `Ikonka: ${icon || 'Yo\'q'}`, callback_data: `cat_update_icon_${categoryId}` }],
                     [{ text: "🗑 Kategoriyani o'chirish", callback_data: `delete_category_${categoryId}` }],
                     [{ text: "⬅️ Orqaga", callback_data: 'back_to_prev' }],
                 ],
             },
         };
-        const message = `📝 Kategoriya: ${displayIcon} ${displayName} (ID: ${categoryId})\nQaysi maydonni yangilashni xohlaysiz?`;
+        const message = `📝 Kategoriya: ${icon} ${name} (ID: ${categoryId})\nQaysi maydonni yangilashni xohlaysiz?`;
         if (messageId) {
             bot.editMessageText(message, { chat_id: chatId, message_id: messageId, reply_markup: updateKeyboard.reply_markup });
         } else {
@@ -44,11 +44,18 @@ async function showCategoryUpdateSelect(chatId, messageId = null) {
             bot.sendMessage(chatId, "Bosh menyu.", mainKeyboard);
             return;
         }
-        const cats = snapshot.docs.map(d => { const x = d.data(); return { id: x.id, name: getLocalName(x.name), icon: x.icon || '' }; });
+        const cats = snapshot.docs.map(d => {
+            const x = d.data();
+            return { id: x.id, name: getStr(x.name), icon: x.icon || x.icon_url || '' };
+        });
         const kb = { reply_markup: { inline_keyboard: [] } };
         for (let i = 0; i < cats.length; i += 2) {
-            const row = [{ text: `${cats[i].icon} ${cats[i].name}`.trim(), callback_data: `cat_select_${cats[i].id}` }];
-            if (i + 1 < cats.length) row.push({ text: `${cats[i + 1].icon} ${cats[i + 1].name}`.trim(), callback_data: `cat_select_${cats[i + 1].id}` });
+            const label1 = `${cats[i].icon} ${cats[i].name}`.trim();
+            const row = [{ text: label1 || '?', callback_data: `cat_select_${cats[i].id}` }];
+            if (i + 1 < cats.length) {
+                const label2 = `${cats[i + 1].icon} ${cats[i + 1].name}`.trim();
+                row.push({ text: label2 || '?', callback_data: `cat_select_${cats[i + 1].id}` });
+            }
             kb.reply_markup.inline_keyboard.push(row);
         }
         const text = "Qaysi kategoriyani yangilashni xohlaysiz?";
