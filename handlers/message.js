@@ -29,7 +29,7 @@ function registerMessageHandler() {
         }
         if (text === "Orqaga") { await handleBack(chatId); return; }
         if (text && commandButtons.includes(text)) { await handleCommand(chatId, text); return; }
-        if (photo && !text) { bot.emit('photo', msg); return; }
+        if (photo && !text) { return; }
         if (!userState[chatId] || userState[chatId].step === 'none') {
             bot.sendMessage(chatId, "Tugmalardan tanlang:", mainKeyboard);
             return;
@@ -47,24 +47,17 @@ function registerMessageHandler() {
                     data.name = text;
                     state.steps.push(oldStep);
                     state.step = 'product_price';
-                    bot.sendMessage(chatId, "2/9. Narxni so'mda kiriting (mas: 250000):", backKeyboard);
+                    bot.sendMessage(chatId, "2/8. Narxni so'mda kiriting (mas: 250000):", backKeyboard);
                     break;
                 case 'product_price': {
                     const price = parseNumberInput(text);
                     if (price === null || price <= 0) { bot.sendMessage(chatId, "Musbat son kiriting!"); return; }
                     data.price = Math.floor(price);
-                    state.steps.push(oldStep);
-                    state.step = 'product_price_usd';
-                    bot.sendMessage(chatId, "3/9. Narxni USDda kiriting (mas: 25.50):", backKeyboard);
-                    break;
-                }
-                case 'product_price_usd': {
-                    const priceUSD = parseNumberInput(text);
-                    if (priceUSD === null || priceUSD <= 0) { bot.sendMessage(chatId, "Musbat son kiriting! Mas: 25.50"); return; }
-                    data.priceUSD = Math.round(priceUSD * 100) / 100;
+                    const usdRate = parseFloat(process.env.USD_RATE || '12900');
+                    data.priceUSD = Math.round((data.price / usdRate) * 100) / 100;
                     state.steps.push(oldStep);
                     state.step = 'product_discount';
-                    bot.sendMessage(chatId, "4/9. Chegirma (0-100, mas: 10 yoki 0):", backKeyboard);
+                    bot.sendMessage(chatId, `3/8. Chegirma (0-100, mas: 10 yoki 0):\n💱 USD avtomatik: $${data.priceUSD} (kurs: ${usdRate.toLocaleString()} so'm)`, backKeyboard);
                     break;
                 }
                 case 'product_discount': {
@@ -82,7 +75,7 @@ function registerMessageHandler() {
                             one_time_keyboard: true,
                         },
                     };
-                    bot.sendMessage(chatId, "5/9. Kategoriyani tanlang:", ckb);
+                    bot.sendMessage(chatId, "4/8. Kategoriyani tanlang:", ckb);
                     break;
                 }
                 case 'product_category':
@@ -90,7 +83,7 @@ function registerMessageHandler() {
                     data.category = text;
                     state.steps.push(oldStep);
                     state.step = 'product_image';
-                    bot.sendMessage(chatId, "6/9. Rasm yuboring (photo formatida):", mainBackKeyboard);
+                    bot.sendMessage(chatId, "5/8. Rasm yuboring (photo formatida):", mainBackKeyboard);
                     break;
                 case 'product_image':
                     bot.sendMessage(chatId, "Iltimos, rasm yuboring (photo formatida)!", mainBackKeyboard);
@@ -99,14 +92,14 @@ function registerMessageHandler() {
                     data.description = text;
                     state.steps.push(oldStep);
                     state.step = 'product_stock';
-                    bot.sendMessage(chatId, "8/9. Korxobada nechta borligi (mas: 50):", backKeyboard);
+                    bot.sendMessage(chatId, "7/8. Korxobada nechta borligi (mas: 50):", backKeyboard);
                     break;
                 case 'product_stock': {
                     if (!/^\d+$/.test(text) || parseInt(text) < 0) { bot.sendMessage(chatId, "0 yoki musbat son!"); return; }
                     data.stock = parseInt(text);
                     state.steps.push(oldStep);
                     state.step = 'product_warehouse';
-                    bot.sendMessage(chatId, "9/9. Ombordagi jami soni (mas: 200):", backKeyboard);
+                    bot.sendMessage(chatId, "8/8. Ombordagi jami soni (mas: 200):", backKeyboard);
                     break;
                 }
                 case 'product_warehouse': {

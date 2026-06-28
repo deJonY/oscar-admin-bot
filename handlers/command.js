@@ -16,7 +16,7 @@ async function handleCommand(chatId, text) {
         const categoryNames = snapshot.docs.map(d => getLocalName(d.data().name));
         if (categoryNames.length === 0) { bot.sendMessage(chatId, "Avval kategoriya qo'shing.", mainKeyboard); return; }
         userState[chatId] = { step: 'product_name', data: { categoryNames }, steps: [] };
-        bot.sendMessage(chatId, "1/9. Mahsulot nomini kiriting:", backKeyboard);
+        bot.sendMessage(chatId, "1/8. Mahsulot nomini kiriting:", backKeyboard);
         return;
     }
     if (text === "📂 Kategoriya qo'shish") {
