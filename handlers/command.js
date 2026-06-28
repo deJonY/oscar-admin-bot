@@ -58,6 +58,29 @@ async function handleCommand(chatId, text) {
         }
         return;
     }
+    if (text === "📋 Barcha mahsulotlar") {
+        try {
+            const snapshot = await db.collection('products').orderBy('id', 'asc').get();
+            if (snapshot.empty) { bot.sendMessage(chatId, "Hali mahsulotlar yo'q.", mainKeyboard); return; }
+            const products = snapshot.docs.map(d => d.data());
+            const kb = { reply_markup: { inline_keyboard: [] } };
+            for (let i = 0; i < products.length; i += 2) {
+                const p = products[i];
+                const label = `${p.name} [${p.category || '?'}]`;
+                const row = [{ text: label, callback_data: `update_product_${p.id}` }];
+                if (i + 1 < products.length) {
+                    const p2 = products[i + 1];
+                    row.push({ text: `${p2.name} [${p2.category || '?'}]`, callback_data: `update_product_${p2.id}` });
+                }
+                kb.reply_markup.inline_keyboard.push(row);
+            }
+            bot.sendMessage(chatId, `📋 Barcha mahsulotlar (${products.length} ta):`, kb);
+        } catch (error) {
+            console.error("Mahsulotlarni olishda xato:", error);
+            bot.sendMessage(chatId, "❌ Xato!", mainKeyboard);
+        }
+        return;
+    }
     if (text === "❌ Bekor qilish") {
         resetUserState(chatId);
         bot.sendMessage(chatId, "Bekor qilindi.", mainKeyboard);

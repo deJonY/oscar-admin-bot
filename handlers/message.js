@@ -151,7 +151,17 @@ function registerMessageHandler() {
         // KATEGORIYA YANGILASH
         if (state.step === 'update_category_name') {
             try {
+                const catDoc = await db.collection('categories').doc(String(state.data.categoryId)).get();
+                const oldName = catDoc.exists ? catDoc.data().name : null;
                 await db.collection('categories').doc(String(state.data.categoryId)).update({ name: text });
+                if (oldName && oldName !== text) {
+                    const productsSnap = await db.collection('products').where('category', '==', oldName).get();
+                    if (!productsSnap.empty) {
+                        const batch = db.batch();
+                        productsSnap.docs.forEach(doc => batch.update(doc.ref, { category: text }));
+                        await batch.commit();
+                    }
+                }
                 state.step = 'category_update_view';
                 await showCategoryView(chatId, state.data.categoryId, state.data.messageId);
                 bot.sendMessage(chatId, `✅ Nom yangilandi: ${text}`, backKeyboard);
