@@ -68,11 +68,11 @@ async function handleCommand(chatId, text) {
             const kb = { reply_markup: { inline_keyboard: [] } };
             for (let i = 0; i < products.length; i += 2) {
                 const p = products[i];
-                const label = `${p.name} [${p.category || '?'}]`;
+                const label = `${getLocalName(p.name)} [${getLocalName(p.category) || '?'}]`;
                 const row = [{ text: label, callback_data: `update_product_${p.id}` }];
                 if (i + 1 < products.length) {
                     const p2 = products[i + 1];
-                    row.push({ text: `${p2.name} [${p2.category || '?'}]`, callback_data: `update_product_${p2.id}` });
+                    row.push({ text: `${getLocalName(p2.name)} [${getLocalName(p2.category) || '?'}]`, callback_data: `update_product_${p2.id}` });
                 }
                 kb.reply_markup.inline_keyboard.push(row);
             }
