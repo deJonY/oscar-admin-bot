@@ -20,7 +20,7 @@ function registerPhotoHandler() {
                 if (state.step === 'product_image') {
                     state.steps.push(state.step);
                     state.step = 'product_description';
-                    bot.editMessageText("✅ Rasm yuklandi!\n6/8. Tavsifni kiriting:", { chat_id: chatId, message_id: waitMsg.message_id });
+                    bot.editMessageText("✅ Rasm yuklandi!\n7/9. Tavsifni kiriting:", { chat_id: chatId, message_id: waitMsg.message_id });
                     bot.sendMessage(chatId, "Tavsif:", backKeyboard);
                 } else {
                     try {

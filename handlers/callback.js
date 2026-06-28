@@ -6,6 +6,7 @@ const { handleInlineBack } = require('./back');
 const { showCategoryView, showCategoryUpdateSelect } = require('../views/category');
 const { showProductView, showProductUpdateCategorySelect, showProductsInCategory, getProductsInCategory } = require('../views/product');
 const { BONUS_DISCOUNT_PERCENT } = require('../config/constants');
+const { getLocalName } = require('../utils/helpers');
 
 function registerCallbackHandler() {
     bot.on('callback_query', async (cq) => {
@@ -21,7 +22,7 @@ function registerCallbackHandler() {
                 const doc = await db.collection('orders').doc(orderId).get();
                 if (!doc.exists) { bot.answerCallbackQuery(cq.id, { text: "Topilmadi!" }); return; }
                 const o = doc.data();
-                const itemsText = o.items?.map(item => `- ${item.quantity} x ${item.name} — ${(item.price * item.quantity).toLocaleString("uz-UZ")} so'm`).join('\n') || "Mahsulot yo'q";
+                const itemsText = o.items?.map(item => `- ${item.quantity} x ${getLocalName(item.name)} — ${(item.price * item.quantity).toLocaleString("uz-UZ")} so'm`).join('\n') || "Mahsulot yo'q";
                 const bonusText = o.orderType === 'discount' ? `🎁 ${BONUS_DISCOUNT_PERCENT}% chegirma\n` : o.orderType === 'bonus' ? `🎁 1+1 bonus\n` : '';
                 const statusEmoji = o.status === 'confirmed' ? "✅" : o.status === 'cancelled' ? "❌" : "🆕";
                 const statusText = o.status === 'confirmed' ? "Tasdiqlangan" : o.status === 'cancelled' ? "Bekor qilingan" : "Yangi";
@@ -62,10 +63,12 @@ function registerCallbackHandler() {
                 if (orderData.status !== 'new') { bot.answerCallbackQuery(cq.id, { text: `Allaqachon ${orderData.status}!` }); return; }
                 await orderRef.update({ status: isConfirm ? 'confirmed' : 'cancelled' });
                 if (isConfirm && orderData.customerTelegramId) {
-                    const customerRef = db.collection('customers').doc(String(orderData.customerTelegramId));
-                    const customerDoc = await customerRef.get();
-                    if (customerDoc.exists) {
-                        const c = customerDoc.data();
+                    const customerSnap = await db.collection('customers')
+                        .where('telegramId', '==', orderData.customerTelegramId)
+                        .limit(1).get();
+                    if (!customerSnap.empty) {
+                        const customerRef = customerSnap.docs[0].ref;
+                        const c = customerSnap.docs[0].data();
                         const currentCount = c.ordersCount || 0;
                         const newCount = currentCount >= 2 ? 0 : currentCount + 1;
                         await customerRef.update({ ordersCount: newCount, totalOrders: (c.totalOrders || 0) + 1 });
@@ -120,9 +123,9 @@ function registerCallbackHandler() {
                 const count = await getProductsInCategory(cat.name);
                 if (count === 0) {
                     await db.collection('categories').doc(String(id)).delete();
-                    bot.editMessageText(`✅ "${cat.name}" o'chirildi.`, { chat_id: chatId, message_id: messageId });
+                    bot.editMessageText(`✅ "${getLocalName(cat.name)}" o'chirildi.`, { chat_id: chatId, message_id: messageId });
                 } else {
-                    bot.editMessageText(`⚠️ "${cat.name}" ichida ${count} ta mahsulot bor. Avval ularni boshqa kategoriyaga o'tkazing yoki o'chiring.`, { chat_id: chatId, message_id: messageId });
+                    bot.editMessageText(`⚠️ "${getLocalName(cat.name)}" ichida ${count} ta mahsulot bor. Avval ularni boshqa kategoriyaga o'tkazing yoki o'chiring.`, { chat_id: chatId, message_id: messageId });
                 }
                 bot.answerCallbackQuery(cq.id);
             } catch (error) { bot.answerCallbackQuery(cq.id, { text: "Xato!" }); }
@@ -186,7 +189,7 @@ function registerCallbackHandler() {
                 bot.sendMessage(chatId, 'Yangi rasm yuboring:', mainBackKeyboard);
             } else {
                 userState[chatId] = { step: 'update_value', data: { productId: id, field: fieldType, ...preserve }, steps: cur.steps || [] };
-                const labelMap = { price: "Narx (so'm)", discount: 'Chegirma (%)', stock: 'Stock' };
+                const labelMap = { price: "Narx (so'm)", priceUSD: "Narx (USD)", discount: 'Chegirma (%)', stock: 'Korxobada nechta', warehouseCount: "Korxoba sig'imi (ombor)" };
                 bot.sendMessage(chatId, `${labelMap[fieldType] || fieldType} uchun yangi qiymatni yuboring:`, backKeyboard);
             }
             bot.answerCallbackQuery(cq.id); return;
@@ -199,7 +202,7 @@ function registerCallbackHandler() {
                 if (!doc.exists) { bot.answerCallbackQuery(cq.id, { text: "Topilmadi!" }); return; }
                 const p = doc.data();
                 await db.collection('products').doc(String(id)).delete();
-                bot.editMessageText(`✅ "${p.name}" o'chirildi.`, { chat_id: chatId, message_id: messageId });
+                bot.editMessageText(`✅ "${getLocalName(p.name)}" o'chirildi.`, { chat_id: chatId, message_id: messageId });
                 bot.answerCallbackQuery(cq.id);
             } catch (error) { bot.answerCallbackQuery(cq.id, { text: "Xato!" }); }
             return;
