@@ -138,11 +138,12 @@ function registerCallbackHandler() {
                 const doc = await db.collection('categories').doc(String(id)).get();
                 if (!doc.exists) { bot.answerCallbackQuery(cq.id, { text: "Topilmadi!" }); return; }
                 const cat = doc.data();
+                const catName = getLocalName(cat.name);
                 const state = userState[chatId] || { step: 'none', data: {}, steps: [] };
                 state.steps.push(state.step); state.step = 'product_update_product_select';
-                state.data.selectedCategory = cat.name; state.data.messageId = messageId;
+                state.data.selectedCategory = catName; state.data.messageId = messageId;
                 userState[chatId] = state;
-                await showProductsInCategory(chatId, cat.name, messageId);
+                await showProductsInCategory(chatId, catName, messageId);
                 bot.answerCallbackQuery(cq.id);
             } catch (error) { bot.answerCallbackQuery(cq.id, { text: "Xato!" }); }
             return;

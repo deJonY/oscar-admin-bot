@@ -81,9 +81,10 @@ async function showProductUpdateCategorySelect(chatId, messageId = null) {
 
 async function showProductsInCategory(chatId, categoryName, messageId = null) {
     try {
-        const snapshot = await db.collection('products').where('category', '==', categoryName).get();
+        const categoryStr = getLocalName(categoryName);
+        const snapshot = await db.collection('products').where('category', '==', categoryStr).get();
         if (snapshot.empty) {
-            const text = `"${categoryName}" kategoriyasida mahsulot yo'q.`;
+            const text = `"${categoryStr}" kategoriyasida mahsulot yo'q.`;
             if (messageId) bot.editMessageText(text, { chat_id: chatId, message_id: messageId });
             bot.sendMessage(chatId, text, mainKeyboard);
             resetUserState(chatId);
@@ -97,11 +98,11 @@ async function showProductsInCategory(chatId, categoryName, messageId = null) {
             kb.reply_markup.inline_keyboard.push(row);
         }
         kb.reply_markup.inline_keyboard.push([{ text: "⬅️ Orqaga", callback_data: 'back_to_prev' }]);
-        const text = `"${categoryName}" kategoriyasidagi mahsulotlar:`;
+        const text = `"${categoryStr}" kategoriyasidagi mahsulotlar:`;
         if (messageId) bot.editMessageText(text, { chat_id: chatId, message_id: messageId, reply_markup: kb.reply_markup });
         else bot.sendMessage(chatId, text, kb);
         const state = userState[chatId];
-        if (state) state.data.selectedCategory = categoryName;
+        if (state) state.data.selectedCategory = categoryStr;
     } catch (error) {
         console.error("Xato:", error);
     }
@@ -110,7 +111,7 @@ async function showProductsInCategory(chatId, categoryName, messageId = null) {
 async function getProductsInCategory(categoryName) {
     if (!db) return 0;
     try {
-        const snapshot = await db.collection('products').where('category', '==', categoryName).get();
+        const snapshot = await db.collection('products').where('category', '==', getLocalName(categoryName)).get();
         return snapshot.size;
     } catch (error) {
         return 0;
