@@ -28,6 +28,7 @@ async function showProductView(chatId, productId, messageId) {
                     [{ text: `Korxoba sig'imi (ombor): ${(p.warehouseCount || 0).toLocaleString()} dona`, callback_data: `update_field_warehouseCount_${productId}` }],
                     [{ text: `Tavsif: ${p.description ? p.description.substring(0, 20) + '...' : 'Yo\'q'}`, callback_data: `update_field_description_${productId}` }],
                     [{ text: `Rasm: ${p.image ? 'Bor' : 'Yo\'q'}`, callback_data: `update_field_image_${productId}` }],
+                    [{ text: `📂 Kategoriya: ${p.category || 'Yo\'q'}`, callback_data: `update_field_category_${productId}` }],
                     [{ text: "🗑 Mahsulotni o'chirish", callback_data: `delete_product_${productId}` }],
                     [{ text: "⬅️ Orqaga", callback_data: 'back_to_prev' }],
                 ],
