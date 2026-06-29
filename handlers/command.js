@@ -123,6 +123,19 @@ async function handleCommand(chatId, text) {
         }
         return;
     }
+
+    // ─── VIP ───────────────────────────────────────────────────
+    if (text === "⭐ VIP qo'shish") {
+        userState[chatId] = { step: 'vip_add_id', data: {}, steps: [] };
+        bot.sendMessage(chatId, "👤 VIP qo'shish\n\nTelegram ID kiriting:", backKeyboard);
+        return;
+    }
+    if (text === "🗑 VIP o'chirish") {
+        userState[chatId] = { step: 'vip_remove_id', data: {}, steps: [] };
+        bot.sendMessage(chatId, "🗑 VIP o'chirish\n\nTelegram ID kiriting:", backKeyboard);
+        return;
+    }
+
     bot.sendMessage(chatId, "Tugmalardan tanlang:", mainKeyboard);
 }
 
