@@ -11,6 +11,18 @@ const { showCategoryView } = require('../views/category');
 
 function registerMessageHandler() {
     bot.on('message', async (msg) => {
+        try {
+            await handleIncomingMessage(msg);
+        } catch (error) {
+            console.error("❌ message handlerida kutilmagan xato:", error);
+            try {
+                await bot.sendMessage(msg.chat.id, "❌ Kutilmagan xato yuz berdi. Iltimos, qaytadan urinib ko'ring yoki /start bosing.", mainKeyboard);
+            } catch (_) { /* xabar yuborishning o'zi ham muvaffaqiyatsiz bo'lsa, jim qoldiramiz */ }
+        }
+    });
+}
+
+async function handleIncomingMessage(msg) {
         const chatId = msg.chat.id;
         const text = msg.text;
         const photo = msg.photo;
@@ -329,7 +341,6 @@ function registerMessageHandler() {
         }
 
         bot.sendMessage(chatId, "Tushunmadim. Tugmalardan tanlang:", mainKeyboard);
-    });
 }
 
 module.exports = { registerMessageHandler };

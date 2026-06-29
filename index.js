@@ -10,6 +10,16 @@ const { registerVipCommands } = require('./handlers/vip');
 const { startUserBot } = require('./bots/userBot');
 const { startServer } = require('./server');
 
+// Kutilmagan xatolar butun botni o'chirib qo'ymasligi uchun himoya.
+// Bular yo'q bo'lganda, masalan bitta sendMessage'dagi noto'g'ri parametr
+// yoki tarmoq xatosi butun process'ni yiqitib, bot "jim qolib" qolishi mumkin edi.
+process.on('unhandledRejection', (reason) => {
+    console.error('❌ Unhandled Rejection:', reason);
+});
+process.on('uncaughtException', (error) => {
+    console.error('❌ Uncaught Exception:', error);
+});
+
 registerOrderListener();
 registerMessageHandler();
 registerPhotoHandler();
