@@ -1,24 +1,24 @@
 require("dotenv").config();
 const TelegramBot = require("node-telegram-bot-api");
-const admin = require("firebase-admin");
-
+const { db } = require('../config/firebase');
+// const admin = require("firebase-admin");
 // ==================== SOZLAMALAR ====================
 const TOKEN = process.env.ADMIN_BOT_TOKEN;
 const ADMIN_IDS = process.env.ADMIN_IDS
 
 // Firebase sozlash
-let db;
-try {
-    const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-    if (!serviceAccountJson) throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON topilmadi.");
-    const serviceAccount = JSON.parse(serviceAccountJson);
-    admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-    db = admin.firestore();
-    console.log("✅ Firebase ulandi.");
-} catch (error) {
-    console.error("❌ Firebase xato:", error.message);
-    process.exit(1);
-}
+// let db;
+// try {
+//     const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+//     if (!serviceAccountJson) throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON topilmadi.");
+//     const serviceAccount = JSON.parse(serviceAccountJson);
+//     admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+//     db = admin.firestore();
+//     console.log("✅ Firebase ulandi.");
+// } catch (error) {
+//     console.error("❌ Firebase xato:", error.message);
+//     process.exit(1);
+// }
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
