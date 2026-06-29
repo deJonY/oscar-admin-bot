@@ -1,3 +1,4 @@
+// vip.js
 const { bot } = require('../config/adminBot');
 const { db } = require('../config/firebase');
 const { userState, resetUserState } = require('../state/userState');
@@ -8,15 +9,15 @@ function registerVipCommands() {
     bot.onText(/\/addvip/, async (msg) => {
         const chatId = msg.chat.id;
         resetUserState(chatId);
-        userState[chatId] = { step: 'vip_add_id', data: {}, steps: [] };
-        bot.sendMessage(chatId, '👤 VIP qo\'shish\n\nTelegram ID kiriting:', backKeyboard);
+        userState[chatId] = { step: 'vip_add_id', data: {} };
+        bot.sendMessage(chatId, '👤 VIP qo\'shish\n\nTelegram ID yoki @username kiriting:', backKeyboard);
     });
 
     // /removevip command
     bot.onText(/\/removevip/, async (msg) => {
         const chatId = msg.chat.id;
         resetUserState(chatId);
-        userState[chatId] = { step: 'vip_remove_id', data: {}, steps: [] };
+        userState[chatId] = { step: 'vip_remove_id', data: {} };
         bot.sendMessage(chatId, '🗑 VIP o\'chirish\n\nTelegram ID kiriting:', backKeyboard);
     });
 }
@@ -28,19 +29,73 @@ async function handleVipStep(chatId, text) {
     const step = state.step;
     const data = state.data;
 
-    // ─── ADD VIP ───────────────────────────────────────────────
+    // ─── ADD VIP (STEP 1: ID yoki @username) ──────────────────────────
     if (step === 'vip_add_id') {
-        const telegramId = text.trim();
-        if (!/^\d+$/.test(telegramId)) {
-            bot.sendMessage(chatId, '❌ Telegram ID faqat raqamlardan iborat bo\'lishi kerak!');
+        const input = text.trim();
+
+        // 1-usul: To'g'ridan-to'g'ri Telegram ID (raqam)
+        if (/^\d+$/.test(input)) {
+            data.telegramId = input;
+            state.step = 'vip_add_login';
+            bot.sendMessage(chatId, 'Login kiriting (mas: Vip_1):', backKeyboard);
             return true;
         }
-        data.telegramId = telegramId;
-        state.step = 'vip_add_login';
-        bot.sendMessage(chatId, 'Login kiriting (mas: Vip_1):', backKeyboard);
+
+        // 2-usul: @username orqali qidirish
+        const username = input.replace('@', '').trim();
+        if (username) {
+            try {
+                // Firestore dan username bo'yicha qidirish
+                const usersSnap = await db.collection('telegram_users')
+                    .where('username', '==', username)
+                    .get();
+
+                if (!usersSnap.empty) {
+                    const userData = usersSnap.docs[0].data();
+                    const telegramId = String(userData.chatId || userData.telegram_id);
+                    if (telegramId) {
+                        data.telegramId = telegramId;
+                        data.username = userData.username || username;
+                        state.step = 'vip_add_login';
+                        bot.sendMessage(
+                            chatId,
+                            `✅ Foydalanuvchi topildi: @${username} (ID: ${telegramId})\n\nLogin kiriting:`,
+                            backKeyboard
+                        );
+                        return true;
+                    }
+                }
+
+                // Telegram API orqali qidirish
+                try {
+                    const member = await bot.getChat(username);
+                    if (member && member.id) {
+                        data.telegramId = String(member.id);
+                        data.username = member.username || username;
+                        state.step = 'vip_add_login';
+                        bot.sendMessage(
+                            chatId,
+                            `✅ Foydalanuvchi topildi: @${username} (ID: ${member.id})\n\nLogin kiriting:`,
+                            backKeyboard
+                        );
+                        return true;
+                    }
+                } catch (_) { }
+
+                bot.sendMessage(chatId, `❌ @${username} topilmadi. To'g'ri Telegram ID yoki @username kiriting.`);
+                return true;
+            } catch (error) {
+                console.error('Username qidirishda xato:', error);
+                bot.sendMessage(chatId, '❌ Xatolik yuz berdi.');
+                return true;
+            }
+        }
+
+        bot.sendMessage(chatId, '❌ Noto\'g\'ri format! Telegram ID (raqam) yoki @username kiriting.');
         return true;
     }
 
+    // ─── ADD VIP (STEP 2: Login) ──────────────────────────────────────
     if (step === 'vip_add_login') {
         const login = text.trim();
         if (login.length < 2) {
@@ -50,50 +105,47 @@ async function handleVipStep(chatId, text) {
         data.login = login;
 
         try {
-            // Foydalanuvchi username ni Telegram API orqali olish
-            let username = 'VIP User';
+            const telegramId = data.telegramId;
+
+            // Foydalanuvchi nomini olish
+            let username = data.username || 'VIP User';
             try {
-                const member = await bot.getChat(data.telegramId);
+                const member = await bot.getChat(Number(telegramId));
                 if (member && (member.first_name || member.username)) {
                     username = member.first_name
                         ? (member.first_name + (member.last_name ? ' ' + member.last_name : ''))
                         : member.username;
                 }
-            } catch (_) {
-                // Foydalanuvchi topilmasa default ishlatar
-            }
+            } catch (_) { }
 
-            const vipDoc = {
-                login: data.login,
+            await db.collection('VIP_Clients').doc(telegramId).set({
+                login: login,
                 username: username,
-                telegram_id: data.telegramId,
+                telegram_id: telegramId,
                 isVip: true,
                 addedAt: new Date().toISOString(),
                 addedBy: chatId,
-            };
+            });
 
-            await db.collection('VIP_Clients').doc(data.telegramId).set(vipDoc);
-
-            // Adminga xabar
             bot.sendMessage(
                 chatId,
                 `✅ VIP qo'shildi!\n\n` +
                 `👤 Ism: ${username}\n` +
-                `🔑 Login: ${data.login}\n` +
-                `🆔 Telegram ID: ${data.telegramId}`,
+                `🔑 Login: ${login}\n` +
+                `🆔 Telegram ID: ${telegramId}`,
                 mainKeyboard
             );
 
             // VIP foydalanuvchiga xabar yuborish
             try {
                 await bot.sendMessage(
-                    data.telegramId,
+                    Number(telegramId),
                     `🎉 Tabriklaymiz! Sizga VIP status berildi!\n\n` +
-                    `🔑 Sizning loginingiz: ${data.login}\n\n` +
+                    `🔑 Sizning loginingiz: ${login}\n\n` +
                     `VIP imtiyozlaridan foydalanishingiz mumkin.`
                 );
             } catch (err) {
-                console.log(`VIP (${data.telegramId}) ga xabar yuborib bo'lmadi:`, err.message);
+                console.log(`VIP (${telegramId}) ga xabar yuborib bo'lmadi:`, err.message);
                 bot.sendMessage(chatId, `⚠️ Eslatma: VIP foydalanuvchiga xabar yuborib bo'lmadi (bot bilan suhbat boshlamagan bo'lishi mumkin).`);
             }
         } catch (error) {
@@ -105,37 +157,97 @@ async function handleVipStep(chatId, text) {
         return true;
     }
 
-    // ─── REMOVE VIP ────────────────────────────────────────────
+    // ─── REMOVE VIP ────────────────────────────────────────────────────
     if (step === 'vip_remove_id') {
-        const telegramId = text.trim();
-        if (!/^\d+$/.test(telegramId)) {
-            bot.sendMessage(chatId, '❌ Telegram ID faqat raqamlardan iborat bo\'lishi kerak!');
-            return true;
-        }
+        const input = text.trim();
 
-        try {
-            const docRef = db.collection('VIP_Clients').doc(telegramId);
-            const docSnap = await docRef.get();
+        // 1-usul: To'g'ridan-to'g'ri Telegram ID (raqam)
+        if (/^\d+$/.test(input)) {
+            const telegramId = input;
+            try {
+                const docRef = db.collection('VIP_Clients').doc(telegramId);
+                const docSnap = await docRef.get();
 
-            if (!docSnap.exists) {
-                bot.sendMessage(chatId, `❌ ID: ${telegramId} - bu foydalanuvchi VIP ro'yxatida topilmadi.`, mainKeyboard);
+                if (!docSnap.exists) {
+                    bot.sendMessage(chatId, `❌ ID: ${telegramId} - bu foydalanuvchi VIP ro'yxatida topilmadi.`, mainKeyboard);
+                    resetUserState(chatId);
+                    return true;
+                }
+
+                const data = docSnap.data();
+                await docRef.delete();
+
+                bot.sendMessage(
+                    chatId,
+                    `✅ VIP o'chirildi!\n\n` +
+                    `👤 Ism: ${data.username || 'Noma\'lum'}\n` +
+                    `🆔 Telegram ID: ${telegramId}`,
+                    mainKeyboard
+                );
+                resetUserState(chatId);
+                return true;
+            } catch (error) {
+                console.error('VIP o\'chirishda xato:', error);
+                bot.sendMessage(chatId, '❌ Xato yuz berdi! Qayta urinib ko\'ring.', mainKeyboard);
                 resetUserState(chatId);
                 return true;
             }
-
-            await docRef.delete();
-
-            bot.sendMessage(
-                chatId,
-                `✅ VIP o'chirildi!\n\n🆔 Telegram ID: ${telegramId}`,
-                mainKeyboard
-            );
-        } catch (error) {
-            console.error('VIP o\'chirishda xato:', error);
-            bot.sendMessage(chatId, '❌ Xato yuz berdi! Qayta urinib ko\'ring.', mainKeyboard);
         }
 
-        resetUserState(chatId);
+        // 2-usul: @username orqali qidirish
+        const username = input.replace('@', '').trim();
+        if (username) {
+            try {
+                // Firestore dan username bo'yicha qidirish
+                const usersSnap = await db.collection('telegram_users')
+                    .where('username', '==', username)
+                    .get();
+
+                if (usersSnap.empty) {
+                    bot.sendMessage(chatId, `❌ @${username} topilmadi.`, mainKeyboard);
+                    resetUserState(chatId);
+                    return true;
+                }
+
+                const userData = usersSnap.docs[0].data();
+                const telegramId = String(userData.chatId || userData.telegram_id);
+
+                if (!telegramId) {
+                    bot.sendMessage(chatId, `❌ @${username} uchun Telegram ID topilmadi.`, mainKeyboard);
+                    resetUserState(chatId);
+                    return true;
+                }
+
+                const docRef = db.collection('VIP_Clients').doc(telegramId);
+                const docSnap = await docRef.get();
+
+                if (!docSnap.exists) {
+                    bot.sendMessage(chatId, `❌ @${username} VIP ro'yxatida topilmadi.`, mainKeyboard);
+                    resetUserState(chatId);
+                    return true;
+                }
+
+                const data = docSnap.data();
+                await docRef.delete();
+
+                bot.sendMessage(
+                    chatId,
+                    `✅ VIP o'chirildi!\n\n` +
+                    `👤 Ism: ${data.username || username}\n` +
+                    `🆔 Telegram ID: ${telegramId}`,
+                    mainKeyboard
+                );
+                resetUserState(chatId);
+                return true;
+            } catch (error) {
+                console.error('VIP o\'chirishda xato:', error);
+                bot.sendMessage(chatId, '❌ Xato yuz berdi! Qayta urinib ko\'ring.', mainKeyboard);
+                resetUserState(chatId);
+                return true;
+            }
+        }
+
+        bot.sendMessage(chatId, '❌ Noto\'g\'ri format! Telegram ID (raqam) yoki @username kiriting.');
         return true;
     }
 
