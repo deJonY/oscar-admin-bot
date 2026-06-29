@@ -1,4 +1,3 @@
-const TelegramBot = require('7586941333:AAE_7_NWr1BIDHS89MNso0rKNiB2lUL9TIM');
 const { db } = require('../config/firebase');
 const TelegramBot = require('node-telegram-bot-api');
 
