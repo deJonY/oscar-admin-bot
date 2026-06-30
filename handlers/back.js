@@ -28,11 +28,11 @@ async function handleBack(chatId) {
         await showCategoryView(chatId, state.data.categoryId, state.data.messageId);
     } else if (prevStep.startsWith('customer_')) {
         const stepMessages = {
-            customer_firstName: "1/5. Mijozning ismini kiriting:",
-            customer_lastName: "2/5. Familiyasini kiriting:",
-            customer_phone: "3/5. Telefon raqamini kiriting (mas: +998901234567):",
-            customer_login: "4/5. Login yarating (mas: jonibek_123, faqat lotin harflar/raqamlar/_, kamida 3 belgi):",
-            customer_password: "5/5. Parol yarating (kamida 4 belgi):",
+            customer_firstName: "1. Mijozning ismini kiriting:",
+            customer_lastName: "2. Familiyasini kiriting:",
+            customer_phone: "3. Telefon raqamini kiriting (mas: +998901234567):",
+            customer_login: "4. Login yarating (mas: jonibek_123, faqat lotin harflar/raqamlar/_, kamida 3 belgi):",
+            customer_password: "5. Parol yarating (kamida 4 belgi):",
         };
         bot.sendMessage(chatId, stepMessages[prevStep] || "Bosh menyu.", backKeyboard);
     } else if (prevStep.startsWith('product_')) {
