@@ -41,12 +41,12 @@ async function handleCommand(chatId, text) {
         const categoryNames = snapshot.docs.map(d => ({ label: getStr(d.data().name), full: d.data().name }));
         if (categoryNames.length === 0) { bot.sendMessage(chatId, "1. Avval kategoriya qo'shing.", mainKeyboard); return; }
         userState[chatId] = { step: 'product_name', data: { categoryNames }, steps: [] };
-        bot.sendMessage(chatId, "2. Mahsulot nomini kiriting:", backKeyboard);
+        bot.sendMessage(chatId, "1. Mahsulot nomini kiriting:", backKeyboard);
         return;
     }
     if (text === "📂 Kategoriya qo'shish") {
         userState[chatId] = { step: 'category_name', data: {}, steps: [] };
-        bot.sendMessage(chatId, "1. Kategoriya nomini kiriting:", backKeyboard);
+        bot.sendMessage(chatId, "2. Kategoriya nomini kiriting:", backKeyboard);
         return;
     }
     if (text === "📂 Kategoriya yangilash") {

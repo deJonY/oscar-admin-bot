@@ -8,6 +8,7 @@ const { handleCommand } = require('./command');
 const { handleVipStep } = require('./vip');
 const { showProductView } = require('../views/product');
 const { showCategoryView } = require('../views/category');
+const { USD_TO_UZS } = require('../config/constants');
 
 function registerMessageHandler() {
     bot.on('message', async (msg) => {
@@ -57,22 +58,29 @@ async function handleIncomingMessage(msg) {
     // MAHSULOT QO'SHISH
     if (step.startsWith('product_')) {
         const oldStep = step;
+
         switch (step) {
             case 'product_name':
                 data.name = text;
                 state.steps.push(oldStep);
                 state.step = 'product_price';
-                bot.sendMessage(chatId, "2. Narxni so'mda kiriting (mas: 250000):", backKeyboard);
+                bot.sendMessage(chatId, "2. Narxni so'mda kiriting (mas: 36500):", backKeyboard);
                 break;
+
             case 'product_price': {
                 const price = parseNumberInput(text);
-                if (price === null || price <= 0) { bot.sendMessage(chatId, "Musbat son kiriting!"); return; }
-                data.price = Math.floor(price);
+                if (price === null || price <= 0) {
+                    bot.sendMessage(chatId, "❌ Musbat son kiriting!");
+                    return;
+                }
+                // 💰 So'mda kiritiladi, 💵 Dollar da saqlanadi
+                data.price = Math.floor(price / USD_TO_UZS * 100) / 100; // 2 xonali
                 state.steps.push(oldStep);
                 state.step = 'product_discount';
                 bot.sendMessage(chatId, "3. Chegirma (0-100, mas: 10 yoki 0):", backKeyboard);
                 break;
             }
+
             case 'product_discount': {
                 if (!/^\d+$/.test(text) || parseInt(text) < 0 || parseInt(text) > 100) {
                     bot.sendMessage(chatId, "0 dan 100 gacha son kiriting!");
@@ -81,53 +89,79 @@ async function handleIncomingMessage(msg) {
                 data.discount = parseInt(text);
                 state.steps.push(oldStep);
                 state.step = 'product_category';
-                const ckb = {
+                const kb = {
                     reply_markup: {
                         keyboard: data.categoryNames.map(c => [{ text: c.label }]).concat([["Orqaga"]]),
                         resize_keyboard: true,
                         one_time_keyboard: true,
                     },
                 };
-                bot.sendMessage(chatId, "4. Kategoriyani tanlang:", ckb);
+                bot.sendMessage(chatId, "4. Kategoriyani tanlang:", kb);
                 break;
             }
+
             case 'product_category': {
                 const matched = data.categoryNames.find(c => c.label === text);
-                if (!matched) { bot.sendMessage(chatId, "Tugmalardan tanlang!"); return; }
+                if (!matched) {
+                    bot.sendMessage(chatId, "Tugmalardan tanlang!");
+                    return;
+                }
                 data.category = matched.full;
                 state.steps.push(oldStep);
                 state.step = 'product_image';
                 bot.sendMessage(chatId, "5. Rasm yuboring (photo formatida):", mainBackKeyboard);
                 break;
             }
+
             case 'product_image':
                 return;
+
             case 'product_description':
                 data.description = text;
                 state.steps.push(oldStep);
                 state.step = 'product_stock';
                 bot.sendMessage(chatId, "7. Ombordagi miqdor (mas: 50):", backKeyboard);
                 break;
+
             case 'product_stock': {
-                if (!/^\d+$/.test(text) || parseInt(text) < 0) { bot.sendMessage(chatId, "0 yoki musbat son!"); return; }
+                if (!/^\d+$/.test(text) || parseInt(text) < 0) {
+                    bot.sendMessage(chatId, "0 yoki musbat son!");
+                    return;
+                }
                 data.stock = parseInt(text);
+
                 const newId = await getNextId('products');
-                if (newId === -1) { bot.sendMessage(chatId, "❌ ID xato!", mainKeyboard); resetUserState(chatId); return; }
+                if (newId === -1) {
+                    bot.sendMessage(chatId, "❌ ID xato!", mainKeyboard);
+                    resetUserState(chatId);
+                    return;
+                }
+
+                // 📦 Firestore'ga saqlash (narxlar DOLLAR da)
                 const newProduct = {
-                    id: newId, name: data.name, price: data.price,
-                    discount: data.discount || 0, category: data.category,
-                    image: data.image, description: data.description, stock: data.stock,
+                    id: newId,
+                    name: data.name,
+                    price: data.price,           // 💵 Dollar da
+                    discount: data.discount || 0,
+                    category: data.category,
+                    image: data.image,
+                    description: data.description,
+                    stock: data.stock,
+                    createdAt: admin.firestore.FieldValue.serverTimestamp()
                 };
+
                 try {
                     await db.collection('products').doc(String(newId)).set(newProduct);
+
+                    // 💰 Ko'rsatish (SO'M da)
+                    const priceInUZS = data.price * USD_TO_UZS;
                     bot.sendMessage(chatId,
                         `✅ Mahsulot qo'shildi!\n\n` +
                         `📦 ${newProduct.name}\n` +
-                        `💰 ${newProduct.price.toLocaleString('uz-UZ')} so'm\n` +
+                        `💰 ${priceInUZS.toLocaleString('uz-UZ')} so'm ($${data.price.toFixed(2)})\n` +
                         `🏷 Chegirma: ${newProduct.discount}%\n` +
                         `📂 ${newProduct.category}\n` +
-                        `📊 Stock: ${newProduct.stock} ta\n\n` +
-                        `Chegirma sanalari qo'shish uchun "Mahsulotni yangilash" → ushbu mahsulot → "Chegirma boshlanishi/tugashi" tugmalarini ishlating.`,
+                        `📊 Stock: ${newProduct.stock} ta`,
                         mainKeyboard
                     );
                 } catch (error) {
@@ -225,23 +259,47 @@ async function handleIncomingMessage(msg) {
         const stateData = state.data;
         const fieldType = stateData.field;
         let value;
+
         if (fieldType === 'price') {
             const parsed = parseNumberInput(text);
-            if (parsed === null || parsed <= 0) { bot.sendMessage(chatId, "Musbat son kiriting!"); return; }
-            value = Math.floor(parsed);
+            if (parsed === null || parsed <= 0) {
+                bot.sendMessage(chatId, "Musbat son kiriting!");
+                return;
+            }
+            // 💰 So'mda kiritiladi → 💵 Dollar da saqlanadi
+            value = Math.floor(parsed / USD_TO_UZS * 100) / 100;
         } else if (fieldType === 'discount') {
-            if (!/^\d+$/.test(text) || parseInt(text) < 0 || parseInt(text) > 100) { bot.sendMessage(chatId, "0-100 oralig'ida!"); return; }
+            if (!/^\d+$/.test(text) || parseInt(text) < 0 || parseInt(text) > 100) {
+                bot.sendMessage(chatId, "0-100 oralig'ida!");
+                return;
+            }
             value = parseInt(text);
         } else if (fieldType === 'stock') {
-            if (!/^\d+$/.test(text) || parseInt(text) < 0) { bot.sendMessage(chatId, "0 yoki musbat son!"); return; }
+            if (!/^\d+$/.test(text) || parseInt(text) < 0) {
+                bot.sendMessage(chatId, "0 yoki musbat son!");
+                return;
+            }
             value = parseInt(text);
-        } else { bot.sendMessage(chatId, "Xato!"); resetUserState(chatId); return; }
+        } else {
+            bot.sendMessage(chatId, "Xato!");
+            resetUserState(chatId);
+            return;
+        }
+
         try {
             await db.collection('products').doc(String(stateData.productId)).update({ [fieldType]: value });
             state.step = 'product_update_view';
             await showProductView(chatId, stateData.productId, stateData.messageId);
-            bot.sendMessage(chatId, `✅ Yangilandi: ${value}`, backKeyboard);
-        } catch (error) { bot.sendMessage(chatId, "❌ Xato!", mainKeyboard); resetUserState(chatId); }
+
+            // 💰 Ko'rsatish
+            const displayValue = fieldType === 'price'
+                ? `${(value * USD_TO_UZS).toLocaleString('uz-UZ')} so'm ($${value.toFixed(2)})`
+                : value;
+            bot.sendMessage(chatId, `✅ Yangilandi: ${displayValue}`, backKeyboard);
+        } catch (error) {
+            bot.sendMessage(chatId, "❌ Xato!", mainKeyboard);
+            resetUserState(chatId);
+        }
         return;
     }
     if (state.step === 'update_product_description') {

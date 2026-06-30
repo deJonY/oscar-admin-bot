@@ -3,6 +3,7 @@ const { db } = require('../config/firebase');
 const { mainKeyboard } = require('../keyboards');
 const { formatTimestamp, getStr } = require('../utils/helpers');
 const { userState, resetUserState } = require('../state/userState');
+const { USD_TO_UZS } = require('../config/constants'); // ⬅️ QO'SHILDI
 
 async function showProductView(chatId, productId, messageId) {
     try {
@@ -14,14 +15,19 @@ async function showProductView(chatId, productId, messageId) {
         const p = doc.data();
         const name = getStr(p.name, 'Noma\'lum');
         const category = getStr(p.category, 'Yo\'q');
-        const price = p.price || p.pricePiece || 0;
+
+        // 💵 Dollarni 💰 So'mga o'tkazish
+        const priceInUSD = p.price || p.pricePiece || 0;
+        const priceInUZS = Math.round(priceInUSD * USD_TO_UZS); // 💰 So'm
+
         const startDateText = formatTimestamp(p.discountStartDate);
         const endDateText = formatTimestamp(p.discountEndDate);
+
         const updateKeyboard = {
             reply_markup: {
                 inline_keyboard: [
                     [{ text: `Nomi: ${name}`, callback_data: `update_field_name_${productId}` }],
-                    [{ text: `Narx: ${price.toLocaleString('uz-UZ')} so'm`, callback_data: `update_field_price_${productId}` }],
+                    [{ text: `Narx: ${priceInUZS.toLocaleString('uz-UZ')} so'm`, callback_data: `update_field_price_${productId}` }],
                     [{ text: `Chegirma: ${p.discount || 0}%`, callback_data: `update_field_discount_${productId}` }],
                     [{ text: `📅 Chegirma boshlanishi: ${startDateText}`, callback_data: `update_field_discountStart_${productId}` }],
                     [{ text: `📅 Chegirma tugashi: ${endDateText}`, callback_data: `update_field_discountEnd_${productId}` }],
@@ -34,9 +40,10 @@ async function showProductView(chatId, productId, messageId) {
                 ],
             },
         };
+
         const message =
             `📝 Mahsulot: ${name} (ID: ${productId})\n` +
-            `• Narx: ${price.toLocaleString('uz-UZ')} so'm\n` +
+            `• Narx: ${priceInUZS.toLocaleString('uz-UZ')} so'm ($${priceInUSD.toFixed(2)})\n` + // 🔥 IKKALA VALYUTA
             `• Chegirma: ${p.discount || 0}%\n` +
             `• Chegirma boshlanishi: ${startDateText}\n` +
             `• Chegirma tugashi: ${endDateText}\n` +
@@ -45,6 +52,7 @@ async function showProductView(chatId, productId, messageId) {
             `• Tavsif: ${p.description || 'Belgilanmagan'}\n` +
             `• Rasm: ${p.image ? 'URL mavjud' : 'Yo\'q'}\n` +
             `Qaysi maydonni yangilashni xohlaysiz?`;
+
         if (messageId) {
             bot.editMessageText(message, { chat_id: chatId, message_id: messageId, reply_markup: updateKeyboard.reply_markup });
         } else {
@@ -102,12 +110,22 @@ async function showProductsInCategory(chatId, categoryName, messageId = null) {
         }
         const products = snapshot.docs.map(d => {
             const x = d.data();
-            return { id: x.id, name: getStr(x.name, 'Noma\'lum') };
+            const priceInUSD = x.price || x.pricePiece || 0;
+            const priceInUZS = Math.round(priceInUSD * USD_TO_UZS);
+            return {
+                id: x.id,
+                name: getStr(x.name, 'Noma\'lum'),
+                price: priceInUZS // 💰 So'mda
+            };
         });
         const kb = { reply_markup: { inline_keyboard: [] } };
         for (let i = 0; i < products.length; i += 2) {
-            const row = [{ text: products[i].name, callback_data: `update_product_${products[i].id}` }];
-            if (i + 1 < products.length) row.push({ text: products[i + 1].name, callback_data: `update_product_${products[i + 1].id}` });
+            const label1 = `${products[i].name} (${products[i].price.toLocaleString('uz-UZ')} so'm)`;
+            const row = [{ text: label1, callback_data: `update_product_${products[i].id}` }];
+            if (i + 1 < products.length) {
+                const label2 = `${products[i + 1].name} (${products[i + 1].price.toLocaleString('uz-UZ')} so'm)`;
+                row.push({ text: label2, callback_data: `update_product_${products[i + 1].id}` });
+            }
             kb.reply_markup.inline_keyboard.push(row);
         }
         kb.reply_markup.inline_keyboard.push([{ text: "⬅️ Orqaga", callback_data: 'back_to_prev' }]);
