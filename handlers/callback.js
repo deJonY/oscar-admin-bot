@@ -6,6 +6,7 @@ const { handleInlineBack } = require('./back');
 const { showCategoryView, showCategoryUpdateSelect } = require('../views/category');
 const { showProductView, showProductUpdateCategorySelect, showProductsInCategory, getProductsInCategory } = require('../views/product');
 const { BONUS_DISCOUNT_PERCENT } = require('../config/constants');
+const { getStr } = require('../utils/helpers');
 
 function registerCallbackHandler() {
     bot.on('callback_query', async (cq) => {
@@ -163,11 +164,11 @@ function registerCallbackHandler() {
             try {
                 const catsSnap = await db.collection('categories').get();
                 if (catsSnap.empty) { bot.answerCallbackQuery(cq.id, { text: "Kategoriyalar yo'q!" }); return; }
-                const cats = catsSnap.docs.map(d => d.data());
+                const cats = catsSnap.docs.map(d => ({ id: d.data().id, icon: d.data().icon || d.data().icon_url || '', name: getStr(d.data().name) }));
                 const kb = { reply_markup: { inline_keyboard: [] } };
                 for (let i = 0; i < cats.length; i += 2) {
-                    const row = [{ text: `${cats[i].icon} ${cats[i].name}`, callback_data: `set_product_cat_${id}_${cats[i].id}` }];
-                    if (i + 1 < cats.length) row.push({ text: `${cats[i + 1].icon} ${cats[i + 1].name}`, callback_data: `set_product_cat_${id}_${cats[i + 1].id}` });
+                    const row = [{ text: `${cats[i].icon} ${cats[i].name}`.trim(), callback_data: `set_product_cat_${id}_${cats[i].id}` }];
+                    if (i + 1 < cats.length) row.push({ text: `${cats[i + 1].icon} ${cats[i + 1].name}`.trim(), callback_data: `set_product_cat_${id}_${cats[i + 1].id}` });
                     kb.reply_markup.inline_keyboard.push(row);
                 }
                 kb.reply_markup.inline_keyboard.push([{ text: "⬅️ Orqaga", callback_data: 'back_to_prev' }]);
@@ -184,8 +185,9 @@ function registerCallbackHandler() {
             try {
                 const catDoc = await db.collection('categories').doc(String(catId)).get();
                 if (!catDoc.exists) { bot.answerCallbackQuery(cq.id, { text: "Kategoriya topilmadi!" }); return; }
-                const catName = catDoc.data().name;
-                await db.collection('products').doc(String(productId)).update({ category: catName });
+                const catNameObj = catDoc.data().name;
+                await db.collection('products').doc(String(productId)).update({ category: catNameObj });
+                const catName = getStr(catNameObj);
                 const state = userState[chatId] || { step: 'none', data: {}, steps: [] };
                 state.data.productId = productId; state.data.messageId = messageId;
                 userState[chatId] = state;

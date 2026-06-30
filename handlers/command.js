@@ -25,19 +25,28 @@ async function handleCommand(chatId, text) {
         return;
     }
 
+    // if (text === "🛍 Mahsulot qo'shish") {
+    //     const snapshot = await db.collection('categories').get();
+    //     const categoryNames = snapshot.docs
+    //         .map(d => getStr(d.data().name))
+    //         .filter(n => n && n.trim().length > 0);
+    //     if (categoryNames.length === 0) { bot.sendMessage(chatId, "Avval kategoriya qo'shing.", mainKeyboard); return; }
+    //     userState[chatId] = { step: 'product_name', data: { categoryNames }, steps: [] };
+    //     bot.sendMessage(chatId, "1/8. Mahsulot nomini kiriting:", backKeyboard);
+    //     return;
+    // }
+
     if (text === "🛍 Mahsulot qo'shish") {
         const snapshot = await db.collection('categories').get();
-        const categoryNames = snapshot.docs
-            .map(d => getStr(d.data().name))
-            .filter(n => n && n.trim().length > 0);
-        if (categoryNames.length === 0) { bot.sendMessage(chatId, "Avval kategoriya qo'shing.", mainKeyboard); return; }
+        const categoryNames = snapshot.docs.map(d => ({ label: getStr(d.data().name), full: d.data().name }));
+        if (categoryNames.length === 0) { bot.sendMessage(chatId, "1. Avval kategoriya qo'shing.", mainKeyboard); return; }
         userState[chatId] = { step: 'product_name', data: { categoryNames }, steps: [] };
-        bot.sendMessage(chatId, "1/8. Mahsulot nomini kiriting:", backKeyboard);
+        bot.sendMessage(chatId, "2. Mahsulot nomini kiriting:", backKeyboard);
         return;
     }
     if (text === "📂 Kategoriya qo'shish") {
         userState[chatId] = { step: 'category_name', data: {}, steps: [] };
-        bot.sendMessage(chatId, "1/2. Kategoriya nomini kiriting:", backKeyboard);
+        bot.sendMessage(chatId, "1. Kategoriya nomini kiriting:", backKeyboard);
         return;
     }
     if (text === "📂 Kategoriya yangilash") {
@@ -52,7 +61,7 @@ async function handleCommand(chatId, text) {
     }
     if (text === "👥 Mijoz qo'shish") {
         userState[chatId] = { step: 'customer_firstName', data: {}, steps: [] };
-        bot.sendMessage(chatId, "1/5. Mijozning ismini kiriting:", backKeyboard);
+        bot.sendMessage(chatId, "1. Mijozning ismini kiriting:", backKeyboard);
         return;
     }
     if (text === "👥 Mijozlar ro'yxati") {
