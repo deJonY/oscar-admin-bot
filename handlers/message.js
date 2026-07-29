@@ -9,12 +9,6 @@ const { handleVipStep } = require('./vip');
 const { showProductView } = require('../views/product');
 const { showCategoryView } = require('../views/category');
 
-// ====================== YANGI O'ZGARISHLAR ======================
-// 1. Dollar olib tashlandi → faqat UZS
-// 2. pricePiece + priceBox → price + itemsPerBox (birlashtirildi)
-// 3. Korobka/Shtuk qo'shildi
-// 4. USD kurs o'rnatish olib tashlandi
-
 function registerMessageHandler() {
     bot.on('message', async (msg) => {
         try {
@@ -59,8 +53,24 @@ async function handleIncomingMessage(msg) {
     const step = state.step;
     let data = state.data;
 
-    // ❌ USD KURS O'RNATISH O'CHIRILDI (3-4-O'ZGARISH)
-    // Endi faqat UZS ishlatiladi
+    // ─── USD KURS O'RNATISH ──────────────────────────────────────────
+    if (step === 'set_usd_rate') {
+        const rate = parseNumberInput(text);
+        if (!rate || rate <= 0 || rate > 99999999) {
+            bot.sendMessage(chatId, "❌ Noto'g'ri qiymat! Musbat son kiriting (mas: 12600):");
+            return;
+        }
+        try {
+            await db.collection('settings').doc('usd_rate').set({ rate: Math.round(rate), updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+            resetUserState(chatId);
+            bot.sendMessage(chatId, `✅ USD kurs yangilandi!\n\n💱 1 USD = ${Math.round(rate).toLocaleString('uz-UZ')} so'm`, mainKeyboard);
+        } catch (error) {
+            console.error("USD kurs saqlashda xato:", error);
+            bot.sendMessage(chatId, "❌ Saqlashda xato!", mainKeyboard);
+            resetUserState(chatId);
+        }
+        return;
+    }
 
     // ─── MAHSULOT QO'SHISH (3 tilda) ────────────────────────────────
     if (step.startsWith('product_')) {
@@ -90,30 +100,35 @@ async function handleIncomingMessage(msg) {
                 if (!text || text.trim().length < 2) { bot.sendMessage(chatId, "Kamida 2 belgi kiriting!"); return; }
                 data.name_en = text.trim();
                 state.steps.push(oldStep);
-                state.step = 'product_price';
-                bot.sendMessage(chatId, "2. Narxni UZS da kiriting (mas: 25000):", backKeyboard);
+                state.step = 'product_price_piece';
+                bot.sendMessage(chatId, "2. Dona narxini USD da kiriting (mas: 6.53):", backKeyboard);
                 break;
 
-            // 🔥 2. Narx (faqat UZS, birlashtirildi)
-            case 'product_price': {
-                const price = parseNumberInput(text);
-                if (price === null || price <= 0) {
-                    bot.sendMessage(chatId, "❌ Musbat son kiriting! (mas: 25000)");
-                    return;
-                }
-                data.price = Math.round(price);
+            // 2. Narx (pricePiece, USD)
+            case 'product_price_piece': {
+                const price = parseNumberInput(text, true);
+                if (price === null || price <= 0) { bot.sendMessage(chatId, "Musbat son kiriting! (mas: 6.53)"); return; }
+                data.pricePiece = price;
                 state.steps.push(oldStep);
-                state.step = 'product_items_per_box';
-                bot.sendMessage(chatId, "2b. Bir karobkada nechta dona bor? (0 = Shtuk):", backKeyboard);
+                state.step = 'product_price_box';
+                bot.sendMessage(chatId, "2b. Karobka narxini USD da kiriting, agar yo'q bo'lsa 0 (mas: 24.99):", backKeyboard);
                 break;
             }
 
-            // 🔥 2b. itemsPerBox (Korobka/Shtuk)
+            // 2b. Narx (priceBox, USD)
+            case 'product_price_box': {
+                const price = parseNumberInput(text, true);
+                if (price === null || price < 0) { bot.sendMessage(chatId, "0 yoki musbat son kiriting!"); return; }
+                data.priceBox = price;
+                state.steps.push(oldStep);
+                state.step = 'product_items_per_box';
+                bot.sendMessage(chatId, "2c. Bir karobkada nechta dona bor? (yo'q bo'lsa 0):", backKeyboard);
+                break;
+            }
+
+            // 2c. itemsPerBox
             case 'product_items_per_box': {
-                if (!/^\d+$/.test(text) || parseInt(text) < 0) {
-                    bot.sendMessage(chatId, "❌ 0 yoki musbat butun son! (0 = Shtuk)");
-                    return;
-                }
+                if (!/^\d+$/.test(text) || parseInt(text) < 0) { bot.sendMessage(chatId, "0 yoki musbat butun son!"); return; }
                 data.itemsPerBox = parseInt(text);
                 state.steps.push(oldStep);
                 state.step = 'product_discount';
@@ -181,36 +196,22 @@ async function handleIncomingMessage(msg) {
 
             // 7. Stock → saqlash
             case 'product_stock': {
-                if (!/^\d+$/.test(text) || parseInt(text) < 0) {
-                    bot.sendMessage(chatId, "0 yoki musbat son!");
-                    return;
-                }
+                if (!/^\d+$/.test(text) || parseInt(text) < 0) { bot.sendMessage(chatId, "0 yoki musbat son!"); return; }
                 data.stock = parseInt(text);
                 const newId = await getNextId('products');
-                if (newId === -1) {
-                    bot.sendMessage(chatId, "❌ ID xato!", mainKeyboard);
-                    resetUserState(chatId);
-                    return;
-                }
-
-                // 🔥 Yangi mahsulot strukturasi (faqat UZS)
+                if (newId === -1) { bot.sendMessage(chatId, "❌ ID xato!", mainKeyboard); resetUserState(chatId); return; }
                 const newProduct = {
                     id: newId,
                     name: { uz: data.name_uz || '', ru: data.name_ru || '', en: data.name_en || '' },
-                    price: data.price || 0,              // 🔥 Faqat UZS
-                    itemsPerBox: data.itemsPerBox || 0,  // 🔥 Korobka/Shtuk
+                    pricePiece: data.pricePiece || 0,
+                    priceBox: data.priceBox || 0,
+                    itemsPerBox: data.itemsPerBox || 0,
                     discount: data.discount || 0,
                     category: data.category || '',
                     image: data.image || '',
                     description: { uz: data.desc_uz || '', ru: data.desc_ru || '', en: data.desc_en || '' },
                     stock: data.stock,
                 };
-
-                // 🔥 Korobka/Shtuk label
-                const unitLabel = newProduct.itemsPerBox > 0
-                    ? `Korobka (${newProduct.itemsPerBox} dona)`
-                    : 'Shtuk';
-
                 try {
                     await db.collection('products').doc(String(newId)).set(newProduct);
                     bot.sendMessage(chatId,
@@ -218,7 +219,7 @@ async function handleIncomingMessage(msg) {
                         `📦 UZ: ${newProduct.name.uz}\n` +
                         `📦 RU: ${newProduct.name.ru}\n` +
                         `📦 EN: ${newProduct.name.en}\n` +
-                        `💰 Narx: ${newProduct.price.toLocaleString('uz-UZ')} UZS (${unitLabel})\n` +
+                        `💰 Dona: $${newProduct.pricePiece} | Karobka: $${newProduct.priceBox}\n` +
                         `🏷 Chegirma: ${newProduct.discount}%\n` +
                         `📂 Kategoriya: ${getStr(newProduct.category)}\n` +
                         `📊 Stock: ${newProduct.stock} ta`,
@@ -319,59 +320,26 @@ async function handleIncomingMessage(msg) {
         const stateData = state.data;
         const fieldType = stateData.field;
         let value;
-
-        // 🔥 Faqat UZS (price, itemsPerBox, discount, stock)
-        if (fieldType === 'price') {
-            const parsed = parseNumberInput(text);
-            if (parsed === null || parsed <= 0) {
-                bot.sendMessage(chatId, "❌ Musbat son kiriting! (mas: 25000)");
-                return;
-            }
-            value = Math.round(parsed);
+        if (fieldType === 'pricePiece' || fieldType === 'priceBox' || fieldType === 'price') {
+            const parsed = parseNumberInput(text, true);
+            if (parsed === null || parsed < 0) { bot.sendMessage(chatId, "0 yoki musbat son kiriting! (mas: 6.53)"); return; }
+            value = parsed;
         } else if (fieldType === 'discount') {
-            if (!/^\d+$/.test(text) || parseInt(text) < 0 || parseInt(text) > 100) {
-                bot.sendMessage(chatId, "0-100 oralig'ida!");
-                return;
-            }
+            if (!/^\d+$/.test(text) || parseInt(text) < 0 || parseInt(text) > 100) { bot.sendMessage(chatId, "0-100 oralig'ida!"); return; }
             value = parseInt(text);
-        } else if (fieldType === 'stock') {
-            if (!/^\d+$/.test(text) || parseInt(text) < 0) {
-                bot.sendMessage(chatId, "0 yoki musbat son!");
-                return;
-            }
+        } else if (fieldType === 'stock' || fieldType === 'itemsPerBox') {
+            if (!/^\d+$/.test(text) || parseInt(text) < 0) { bot.sendMessage(chatId, "0 yoki musbat son!"); return; }
             value = parseInt(text);
-        } else if (fieldType === 'itemsPerBox') {
-            if (!/^\d+$/.test(text) || parseInt(text) < 0) {
-                bot.sendMessage(chatId, "0 yoki musbat son! (0 = Shtuk)");
-                return;
-            }
-            value = parseInt(text);
-        } else {
-            bot.sendMessage(chatId, "Xato!");
-            resetUserState(chatId);
-            return;
-        }
-
+        } else { bot.sendMessage(chatId, "Xato!"); resetUserState(chatId); return; }
         try {
-            await db.collection('products').doc(String(stateData.productId)).update({ [fieldType]: value });
+            const actualField = fieldType === 'price' ? 'pricePiece' : fieldType;
+            await db.collection('products').doc(String(stateData.productId)).update({ [actualField]: value });
             state.step = 'product_update_view';
             await showProductView(chatId, stateData.productId, stateData.messageId);
-
-            // 🔥 Ko'rsatish
-            let displayValue = value;
-            if (fieldType === 'price') {
-                displayValue = `${value.toLocaleString('uz-UZ')} UZS`;
-            } else if (fieldType === 'itemsPerBox') {
-                displayValue = value > 0 ? `Korobka (${value} dona)` : 'Shtuk';
-            }
-            bot.sendMessage(chatId, `✅ Yangilandi: ${displayValue}`, backKeyboard);
-        } catch (error) {
-            bot.sendMessage(chatId, "❌ Xato!", mainKeyboard);
-            resetUserState(chatId);
-        }
+            bot.sendMessage(chatId, `✅ Yangilandi: ${value}`, backKeyboard);
+        } catch (error) { bot.sendMessage(chatId, "❌ Xato!", mainKeyboard); resetUserState(chatId); }
         return;
     }
-
     if (state.step === 'update_product_description_uz') {
         state.data.desc_uz = text;
         state.step = 'update_product_description_ru';

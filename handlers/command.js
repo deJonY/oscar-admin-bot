@@ -8,11 +8,7 @@ const { showCategoryUpdateSelect } = require('../views/category');
 const { showProductUpdateCategorySelect } = require('../views/product');
 const { handleVipStep } = require('./vip');
 
-// ====================== YANGI O'ZGARISHLAR ======================
-// 1. USD kurs o'rnatish O'CHIRILDI (faqat UZS)
-// 2. Statistika dan USD kurs olib tashlandi
-// 3. Call Center raqami qo'shildi (🆘 Yordam bo'limida)
-// 4. Barcha narxlar UZS formatda
+
 
 async function handleCommand(chatId, text) {
     resetUserState(chatId);
@@ -57,18 +53,34 @@ async function handleCommand(chatId, text) {
         return;
     }
 
-    // ❌ USD KURS O'CHIRILDI (3-4-O'ZGARISH)
-    // Endi faqat UZS ishlatiladi
+    // ─── USD KURS ──────────────────────────────────────────────────
+    if (text === "💱 USD kurs") {
+        try {
+            const doc = await db.collection('settings').doc('usd_rate').get();
+            const currentRate = doc.exists ? (doc.data().rate || 0) : 0;
+            const currentText = currentRate > 0
+                ? `💱 Hozirgi kurs: 1 USD = ${currentRate.toLocaleString('uz-UZ')} so'm\n\n`
+                : `💱 Kurs hali o'rnatilmagan.\n\n`;
+            userState[chatId] = { step: 'set_usd_rate', data: {}, steps: [] };
+            bot.sendMessage(chatId, `${currentText}Yangi kursni kiriting (mas: 12600):`, backKeyboard);
+        } catch (error) {
+            userState[chatId] = { step: 'set_usd_rate', data: {}, steps: [] };
+            bot.sendMessage(chatId, "Yangi USD kursni kiriting (mas: 12600):", backKeyboard);
+        }
+        return;
+    }
 
     // ─── STATISTIKA ────────────────────────────────────────────────
     if (text === "📊 Statistika") {
         try {
-            const [p, c, o, vip] = await Promise.all([
+            const [p, c, o, vip, rateDoc] = await Promise.all([
                 db.collection('products').get(),
                 db.collection('categories').get(),
                 db.collection('orders').get(),
                 db.collection('VIP_Clients').get(),
+                db.collection('settings').doc('usd_rate').get(),
             ]);
+            const rate = rateDoc.exists ? (rateDoc.data().rate || 'Kiritilmagan') : 'Kiritilmagan';
 
             const uniqueCustomers = new Set();
             o.docs.forEach(doc => {
@@ -77,14 +89,14 @@ async function handleCommand(chatId, text) {
                 if (key) uniqueCustomers.add(String(key));
             });
 
-            // 🔥 USD kurs olib tashlandi
             bot.sendMessage(chatId,
                 `📊 Statistika:\n` +
                 `🔹 Mahsulotlar: ${p.size}\n` +
                 `🔹 Kategoriyalar: ${c.size}\n` +
                 `🔹 Buyurtmalar: ${o.size}\n` +
                 `🔹 Mijozlar: ${uniqueCustomers.size}\n` +
-                `🔹 VIP: ${vip.size}`,
+                `🔹 VIP: ${vip.size}\n` +
+                `💱 USD kurs: 1 USD = ${typeof rate === 'number' ? rate.toLocaleString('uz-UZ') : rate} so'm`,
                 mainKeyboard
             );
         } catch (error) {
@@ -110,9 +122,8 @@ async function handleCommand(chatId, text) {
                     addressShort = addr ? `📍 ${addr.length > 25 ? addr.substring(0, 25) + '…' : addr}` : `📍 Manzil yo'q`;
                 }
                 const emoji = o.status === 'confirmed' ? '✅' : o.status === 'cancelled' ? '❌' : o.status === 'delivered' ? '🏁' : '🆕';
-                // 🔥 totalUZS → total (UZS)
-                const totalStr = (o.total || o.totalUZS || 0).toLocaleString('uz-UZ');
-                const btn = `${emoji} ${o.customerName || o.username || 'Noma\'lum'} | ${totalStr} UZS | 🕐 ${formatDateTime(o.createdAt)}`;
+                const totalStr = (o.totalUZS || 0).toLocaleString('uz-UZ');
+                const btn = `${emoji} ${o.customerName || o.username || 'Noma\'lum'} | ${totalStr} so'm | 🕐 ${formatDateTime(o.createdAt)}`;
                 kb.inline_keyboard.push([{ text: btn, callback_data: `order_detail_${doc.id}` }]);
             });
             kb.inline_keyboard.push([{ text: "🔙 Bosh menyu", callback_data: "close_orders_list" }]);
@@ -120,18 +131,6 @@ async function handleCommand(chatId, text) {
         } catch (error) {
             bot.sendMessage(chatId, "❌ Xato!", mainKeyboard);
         }
-        return;
-    }
-
-    // ─── 🆘 YORDAM (YANGI: Call Center qo'shildi) ──────────────────
-    if (text === "🆘 Yordam") {
-        bot.sendMessage(chatId,
-            `📞 Yordam xizmati:\n\n` +
-            `📱 Call Center: +998 55 511 11 66\n` +
-            `🕐 Ish vaqti: 24/7\n\n` +
-            `Savolingizni yozing yoki qo'ng'iroq qiling.`,
-            mainKeyboard
-        );
         return;
     }
 
