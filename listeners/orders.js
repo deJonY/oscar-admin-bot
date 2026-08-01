@@ -66,7 +66,12 @@ async function notifyAdminsNewOrder(orderId, orderData) {
     if (orderData.items && orderData.items.length > 0) {
         itemsText = orderData.items.map(item => {
             const totalPrice = (item.price * item.quantity).toLocaleString("uz-UZ");
-            return `- ${item.quantity} x ${nameToStr(item.name)} — ${totalPrice} so'm`;
+            const isBox = item.unit === 'box';
+            const unitLabel = isBox ? 'karobka' : 'dona';
+            const boxDetail = isBox && item.itemsPerBox
+                ? ` (har birida ${item.itemsPerBox} dona, jami ${item.quantity * item.itemsPerBox} dona)`
+                : '';
+            return `- ${item.quantity} ${unitLabel} x ${nameToStr(item.name)}${boxDetail} — ${totalPrice} UZS`;
         }).join('\n');
     } else {
         itemsText = "Mahsulotlar yo'q";
@@ -91,7 +96,7 @@ async function notifyAdminsNewOrder(orderId, orderData) {
     } else if (orderData.deliveryMethod === 'delivery') {
         const distance = orderData.distanceKm ? `${orderData.distanceKm.toFixed(1)} km` : "Noma'lum";
         const deliveryFeeUZS = orderData.deliveryFee || 0;
-        const deliveryFeeText = deliveryFeeUZS === 0 ? "Bepul" : `${deliveryFeeUZS.toLocaleString("uz-UZ")} so'm`;
+        const deliveryFeeText = deliveryFeeUZS === 0 ? "Bepul" : `${deliveryFeeUZS.toLocaleString("uz-UZ")} UZS`;
         const address = orderData.deliveryAddress || orderData.pickupAddress || 'Kiritilmagan';
         deliveryBlock = `📦 Yetkazib berish: Yetkazib berish\n📏 Masofa: ~${distance}\n🚚 Narx: ${deliveryFeeText}\n📍 Manzil: ${address}\n\n`;
     } else {
@@ -106,7 +111,7 @@ async function notifyAdminsNewOrder(orderId, orderData) {
         customerBlock +
         bonusBlock + deliveryBlock +
         `🛍 Mahsulotlar:\n${itemsText}\n\n` +
-        `💰 Jami: ${(orderData.totalUZS || 0).toLocaleString("uz-UZ")} so'm\n` +
+        `💰 Jami: ${(orderData.totalUZS || 0).toLocaleString("uz-UZ")} UZS\n` +
         `💳 To'lov: ${paymentMethodText}`;
 
     const inlineKeyboard = {
