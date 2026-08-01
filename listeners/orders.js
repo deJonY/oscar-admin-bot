@@ -71,7 +71,7 @@ async function notifyAdminsNewOrder(orderId, orderData) {
             const boxDetail = isBox && item.itemsPerBox
                 ? ` (har birida ${item.itemsPerBox} dona, jami ${item.quantity * item.itemsPerBox} dona)`
                 : '';
-            return `- ${item.quantity} ${unitLabel} x ${nameToStr(item.name)}${boxDetail} — ${totalPrice} UZS`;
+            return `- ${item.quantity} ${unitLabel} x ${nameToStr(item.name)}${boxDetail} — ${totalPrice} `;
         }).join('\n');
     } else {
         itemsText = "Mahsulotlar yo'q";
