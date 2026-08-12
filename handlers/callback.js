@@ -167,6 +167,11 @@ function registerCallbackHandler() {
         }
 
         if (data === 'back_to_prev') { await handleInlineBack(chatId, messageId); bot.answerCallbackQuery(cq.id); return; }
+        if (data.startsWith('back_to_product_')) {
+            const productId = data.split('_')[3];
+            await showProductView(chatId, productId, messageId);
+            return bot.answerCallbackQuery(callbackQuery.id);
+        }
 
         if (data.startsWith('cat_select_')) {
             const id = parseInt(data.replace('cat_select_', ''));
