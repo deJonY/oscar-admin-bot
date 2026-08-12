@@ -27,7 +27,40 @@ function registerCallbackHandler() {
         const data = cq.data;
         if (!data || !admins.includes(chatId)) { bot.answerCallbackQuery(cq.id, { text: "Ruxsat yo'q!" }); return; }
         if (!db) { bot.answerCallbackQuery(cq.id, { text: "Database yo'q." }); return; }
+        // Kategoriyani o'zgartirish tugmasi bosilganda
+        if (data.startsWith('change_category_')) {
+            const productId = data.split('_')[2];
+            // Kategoriyalarni yuklab olamiz
+            const snapshot = await db.collection('categories').get();
+            if (snapshot.empty) {
+                return bot.answerCallbackQuery(callbackQuery.id, { text: "Hech qanday kategoriya yo'q", showAlert: true });
+            }
+            // Kategoriyalar ro'yxatini inline keyboard shaklida chiqaramiz
+            const cats = snapshot.docs.map(d => d.data());
+            const buttons = cats.map(c => ({
+                text: c.icon ? `${c.icon} ${c.name}` : c.name,
+                callback_data: `select_category_for_product_${productId}_${c.id}`
+            }));
+            // Har bir qatorda 2 tadan tugma
+            const rows = [];
+            for (let i = 0; i < buttons.length; i += 2) {
+                const row = [buttons[i]];
+                if (i + 1 < buttons.length) row.push(buttons[i + 1]);
+                rows.push(row);
+            }
+            // Orqaga tugmasi
+            rows.push([{ text: "⬅️ Orqaga", callback_data: `back_to_product_${productId}` }]);
 
+            await bot.editMessageText(
+                `Mahsulot (ID: ${productId}) uchun yangi kategoriyani tanlang:`,
+                {
+                    chat_id: callbackQuery.message.chat.id,
+                    message_id: callbackQuery.message.message_id,
+                    reply_markup: { inline_keyboard: rows }
+                }
+            );
+            return bot.answerCallbackQuery(callbackQuery.id);
+        }
         if (data.startsWith('order_detail_')) {
             const orderId = data.replace('order_detail_', '');
             try {
@@ -75,7 +108,6 @@ function registerCallbackHandler() {
             } catch (error) { bot.answerCallbackQuery(cq.id, { text: "Xato!" }); }
             return;
         }
-
         if (data === 'back_to_orders') {
             try {
                 const snapshot = await db.collection('orders').orderBy('createdAt', 'desc').limit(10).get();
@@ -99,7 +131,6 @@ function registerCallbackHandler() {
             } catch (error) { bot.answerCallbackQuery(cq.id, { text: "Xato!" }); }
             return;
         }
-
         if (data.startsWith('confirm_order_') || data.startsWith('cancel_order_')) {
             const isConfirm = data.startsWith('confirm_order_');
             const orderId = isConfirm ? data.replace('confirm_order_', '') : data.replace('cancel_order_', '');
@@ -192,6 +223,37 @@ function registerCallbackHandler() {
             } catch (error) { bot.answerCallbackQuery(cq.id, { text: "Xato!" }); }
             return;
         }
+        if (data.startsWith('select_category_for_product_')) {
+            const parts = data.split('_'); // ["select", "category", "for", "product", productId, categoryId]
+            const productId = parts[4];
+            const categoryId = parts[5];
+
+            // Kategoriya ma'lumotlarini olamiz
+            const catDoc = await db.collection('categories').doc(categoryId).get();
+            if (!catDoc.exists) {
+                return bot.answerCallbackQuery(callbackQuery.id, { text: "Kategoriya topilmadi", showAlert: true });
+            }
+            const catData = catDoc.data();
+            const newCategoryName = catData.name; // string
+            // Agar kategoriya ko'p tilli bo'lsa (name obyekt), uni ishlating
+            // Lekin sizda `category.name` string ekanligini hisobga olsak, to'g'ridan-to'g'ri olamiz.
+            // Agar sizda `category.name` obyekt bo'lsa, moslashtiring.
+
+            // Mahsulotni yangilaymiz
+            const productRef = db.collection('products').doc(productId);
+            await productRef.update({
+                category: newCategoryName,
+                // Agar `categoryKey` maydoni bo'lsa, uni ham yangilang:
+                // categoryKey: newCategoryName,
+                // Agar `categoryI18n` mavjud bo'lsa, uni ham to'g'rilang (agar kategoriya I18n obyekti bo'lsa)
+                // categoryI18n: catData.nameI18n || null
+            });
+
+            // Yangilangan mahsulot ko'rinishini qayta ko'rsatish
+            await showProductView(chatId, productId, messageId);
+
+            return bot.answerCallbackQuery(callbackQuery.id, { text: "✅ Kategoriya yangilandi!" });
+        }
         if (data.startsWith('update_product_')) {
             const id = parseInt(data.replace('update_product_', ''));
             try {
@@ -206,7 +268,6 @@ function registerCallbackHandler() {
             } catch (error) { bot.answerCallbackQuery(cq.id, { text: "Xato!" }); }
             return;
         }
-
         if (data.startsWith('update_field_category_')) {
             const id = parseInt(data.replace('update_field_category_', ''));
             try {
@@ -225,7 +286,6 @@ function registerCallbackHandler() {
             } catch (error) { bot.answerCallbackQuery(cq.id, { text: "Xato!" }); }
             return;
         }
-
         if (data.startsWith('set_product_cat_')) {
             const parts = data.replace('set_product_cat_', '').split('_');
             const productId = parseInt(parts[0]);
@@ -244,7 +304,6 @@ function registerCallbackHandler() {
             } catch (error) { bot.answerCallbackQuery(cq.id, { text: "Xato!" }); }
             return;
         }
-
         if (data.startsWith('update_field_')) {
             if (data.startsWith('update_field_discountStart_') || data.startsWith('update_field_discountEnd_')) {
                 const isStart = data.startsWith('update_field_discountStart_');
@@ -278,7 +337,6 @@ function registerCallbackHandler() {
             }
             bot.answerCallbackQuery(cq.id); return;
         }
-
         if (data.startsWith('delete_product_')) {
             const id = parseInt(data.replace('delete_product_', ''));
             try {
