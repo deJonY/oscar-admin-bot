@@ -4,7 +4,7 @@ const mainKeyboard = {
             [{ text: "🛍 Mahsulot qo'shish" }, { text: "📂 Kategoriya qo'shish" }],
             [{ text: "📂 Kategoriya yangilash" }, { text: "🔄 Mahsulotni yangilash" }],
             [{ text: "📊 Statistika" }, { text: "💱 USD kurs" }],
-            [{ text: "📦 Buyurtmalar" }, { text: "📂 Kategoriyani o'zgartirish" }],
+            [{ text: "📦 Buyurtmalar" }],
             [{ text: "⭐ VIP qo'shish" }, { text: "🗑 VIP o'chirish" }],
         ],
         resize_keyboard: true,
@@ -31,7 +31,6 @@ const commandButtons = [
     "📊 Statistika", "💱 USD kurs",
     "📦 Buyurtmalar", "❌ Bekor qilish",
     "⭐ VIP qo'shish", "🗑 VIP o'chirish",
-    "📂 Kategoriyani o'zgartirish",
 ];
 
 module.exports = { mainKeyboard, backKeyboard, mainBackKeyboard, commandButtons };

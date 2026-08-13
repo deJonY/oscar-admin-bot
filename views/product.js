@@ -31,7 +31,6 @@ async function showProductView(chatId, productId, messageId) {
                     // YANGI:
                     [{ text: `Tavsif: ${p.description ? getStr(p.description).substring(0, 20) + '...' : 'Yo\'q'}`, callback_data: `update_field_description_${productId}` }], [{ text: `Rasm: ${p.image ? 'Bor' : 'Yo\'q'}`, callback_data: `update_field_image_${productId}` }],
                     [{ text: `📂 Kategoriya: ${category}`, callback_data: `update_field_category_${productId}` }],
-                    [{ text: `📂 Kategoriyani o'zgartirish`, callback_data: `change_category_${productId}` }],
                     [{ text: "🗑 Mahsulotni o'chirish", callback_data: `delete_product_${productId}` }],
                     [{ text: "⬅️ Orqaga", callback_data: 'back_to_prev' }],
                 ],
